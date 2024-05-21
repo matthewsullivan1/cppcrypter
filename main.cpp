@@ -11,12 +11,6 @@
 using namespace std;
 namespace fs = std::filesystem;
 
-void printBytesHex(const vector<unsigned char>& bytes, size_t numBytes) {
-    for (size_t i = 0; i < numBytes && i < bytes.size(); ++i) {
-        cout << hex << setw(2) << setfill('0') << static_cast<int>(bytes[i]) << " ";
-    }
-    cout << dec << endl; // Switch back to decimal
-}
 int main(int argc, char * argv[]){
     fs::path executable_path = fs::absolute(argv[0]);
     fs::path base_path = executable_path.parent_path().parent_path()/"cppcrypter";  // Assuming the executable is two levels deep from the base path
@@ -54,9 +48,10 @@ int main(int argc, char * argv[]){
         return 0;
     }
 
+    // reading bytes of binary
     vector<unsigned char> buf = readBinary(path_to_payload);
     if(buf.empty()){
-        cerr << "buf empty\n";
+        cerr << "empty binary\n";
         return 1;
     }
 
@@ -65,9 +60,9 @@ int main(int argc, char * argv[]){
 
     //cout << "Read " << buf.size() << " bytes from the file." << endl;
     vector<unsigned char> payloadBytes = encrypt(buf, key, iv);
-    vector<unsigned char> decrypted = decrypt(payloadBytes, key, iv);
 
-    /*
+    /* for debugging
+    vector<unsigned char> decrypted = decrypt(payloadBytes, key, iv);
     cout << "encrypted: " << payloadBytes.size() << " bytes" << endl;
     cout << "decrypted: " << decrypted.size() << " bytes" << endl;
     printBytesHex(buf, 16);

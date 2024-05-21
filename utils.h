@@ -9,6 +9,7 @@ using namespace std;
 
 
 string bytesToHexString(const vector<unsigned char>& bytes);
+void printBytesHex(const vector<unsigned char>& bytes, size_t numBytes);
 string generateRandomString(size_t len);
 
 vector<unsigned char> readBinary(string& path_to_payload);

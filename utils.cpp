@@ -23,6 +23,12 @@ string bytesToHexString(const vector<unsigned char>& bytes) {
     }
     return ss.str();
 }
+void printBytesHex(const vector<unsigned char>& bytes, size_t numBytes) {
+    for (size_t i = 0; i < numBytes && i < bytes.size(); ++i) {
+        cout << hex << setw(2) << setfill('0') << static_cast<int>(bytes[i]) << " ";
+    }
+    cout << dec << endl; // Switch back to decimal
+}
 
 string generateRandomString(size_t length) {
     const char charset[] =
@@ -46,7 +52,7 @@ string generateRandomString(size_t length) {
 vector<unsigned char> readBinary(string& path_to_payload) {
     ifstream file(path_to_payload, ios::binary | ios::ate);
     if (!file) {
-        cerr << "could not open binary\n";
+        cerr << "Could not open binary\n";
         return {};
     }
 
@@ -55,12 +61,13 @@ vector<unsigned char> readBinary(string& path_to_payload) {
 
     vector<char> buf(len);
     if (!file.read(buf.data(), len)) {
-        std::cerr << "error reading the binary\n";
+        std::cerr << "Error reading binary\n";
         return {};
     }
 
     file.close();
     
+    // Convert from char vector to unsigned char vector 
     vector<unsigned char> payloadBytes(buf.begin(), buf.end());
 
     return payloadBytes;
@@ -83,12 +90,12 @@ vector<unsigned char> encrypt(const vector<unsigned char>& buf, const vector<uns
     EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
     
     if (!ctx) {
-        cerr << "Error creating context!" << endl;
+        cerr << "Encryption CTX error\n";
         exit(1);
     }
 
     if (EVP_EncryptInit_ex(ctx, EVP_aes_128_cfb8(), NULL, key.data(), iv.data()) != 1) {
-        cerr << "Error initializing encryption!" << endl;
+        cerr << "Encryption error\n";
         EVP_CIPHER_CTX_free(ctx);
         exit(1);
     }
@@ -97,7 +104,7 @@ vector<unsigned char> encrypt(const vector<unsigned char>& buf, const vector<uns
     int len;
 
     if (EVP_EncryptUpdate(ctx, ciphertext.data(), &len, buf.data(), buf.size()) != 1) {
-        cerr << "Error during encryption!" << endl;
+        cerr << "Encryption failed\n";
         EVP_CIPHER_CTX_free(ctx);
         exit(1);
     }
@@ -111,12 +118,12 @@ vector<unsigned char> encrypt(const vector<unsigned char>& buf, const vector<uns
 vector<unsigned char> decrypt(const vector<unsigned char>& buf, const vector<unsigned char>& key, const vector<unsigned char>& iv) {
     EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
     if (!ctx) {
-        cerr << "Error creating context!" << endl;
+        cerr << "Decryption CTX error\n";
         exit(1);
     }
 
     if (EVP_DecryptInit_ex(ctx, EVP_aes_128_cfb8(), NULL, key.data(), iv.data()) != 1) {
-        cerr << "Error initializing decryption!" << endl;
+        cerr << "Decryption error\n";
         EVP_CIPHER_CTX_free(ctx);
         exit(1);
     }
@@ -125,7 +132,7 @@ vector<unsigned char> decrypt(const vector<unsigned char>& buf, const vector<uns
     int len;
 
     if (EVP_DecryptUpdate(ctx, plaintext.data(), &len, buf.data(), buf.size()) != 1) {
-        cerr << "Error during decryption!" << endl;
+        cerr << "decryption failed\n";
         EVP_CIPHER_CTX_free(ctx);
         exit(1);
     }

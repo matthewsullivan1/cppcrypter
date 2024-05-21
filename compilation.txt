@@ -1,4 +1,0 @@
-update procinj with new PID
-make bin/procinj.exe
-make main.exe(if not built already)
-make stub.exe - sometimes random name gen will mess up - just run main again 

