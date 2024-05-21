@@ -1,7 +1,7 @@
 # Compiler and flags
 CXX = g++
-CXXFLAGS = -I"C:\Program Files\OpenSSL-Win64\include" -static-libgcc -static-libstdc++ -static
-LDFLAGS = -L"C:\Program Files\OpenSSL-Win64\lib\VC\x64\MT" -lssl -lcrypto
+CXXFLAGS = -I"./include" -static-libgcc -static-libstdc++ -static
+LDFLAGS = -L"./lib" "./lib/libssl.lib" "./lib/libcrypto.lib"
 
 # Flags for procinj.cpp
 PROCINJ_FLAGS = -static-libgcc -static-libstdc++ -fexceptions
@@ -23,6 +23,13 @@ STUB_TARGETS = $(patsubst $(STUBDIR)/%.cpp,$(STUBDIR)/%,$(STUB_SRCS))
 # Default target
 all: $(TARGET_PROJ) $(TARGET_MAIN) $(STUB_TARGETS)
 
+# Create directories if they don't exist
+$(BINDIR):
+	mkdir $(BINDIR)
+
+$(STUBDIR):
+	mkdir $(STUBDIR)
+
 # Rule to build procinj
 $(TARGET_PROJ): $(PROJ_SRCS) | $(BINDIR)
 	$(CXX) $(PROCINJ_FLAGS) -o $@ $(PROJ_SRCS)
@@ -33,7 +40,7 @@ $(TARGET_MAIN): $(MAIN_SRCS)
 
 # Rule to build each stub
 $(STUBDIR)/%: $(STUBDIR)/%.cpp
-	$(CXX) -o $@ $< $(CXXFLAGS) "C:\Program Files\OpenSSL-Win64\lib\VC\x64\MT\libssl.lib" "C:\Program Files\OpenSSL-Win64\lib\VC\x64\MT\libcrypto.lib"
+	$(CXX) -o $@ $< $(CXXFLAGS) $(LDFLAGS)
 
 # Target to build all stubs
 stub: $(STUB_TARGETS)
