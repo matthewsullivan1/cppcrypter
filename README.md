@@ -9,3 +9,7 @@ main:
 
 stub:
     
+
+
+dynamic api call resolution
+junk mem allocations
