@@ -49,7 +49,7 @@ stub: $(STUB_TARGETS)
 
 # Rule to clean up object and executable files
 clean:
-	rm $(TARGET_MAIN) $(STUB_SRCS) $(TARGET_PL) $(OUTDIR)/stub_*.exe
+	rm $(TARGET_MAIN) $(STUB_SRCS) $(OUTDIR)/stub_*.exe
 # Ensure the bin and out directories exist 
 $(BINDIR):
 	mkdir $(BINDIR)

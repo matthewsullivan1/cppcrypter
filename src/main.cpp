@@ -7,32 +7,26 @@
 #include "utils.h"
 #include <iomanip>
 #include <filesystem>
+#include "flags.h"
 
 using namespace std;
 namespace fs = std::filesystem;
 
-const int FLAG_COUNT = 4;
 bool flags[FLAG_COUNT] = {false};
-enum flags{
-    RAND,
-    VM,
-    DB,
-    DYN
-};
 
 void display(){
     cout << "\nUsage: ./main.exe [options]\nOptions:\n";
     cout << "\t-h, --help                 show all options\n";
     cout << "\t-p                         show default paths for payload, stub output, and stub template\n";
+    cout << "\t-c, --compile              compile stub immediately after writing. makefile must be configured properly\n";
     cout << "\t--payload <C:\\\\path>       specify payload\n";
-    cout << "\t--stub <C:\\\\path>          specify payload\n";
+    cout << "\t--stub <C:\\\\path>          specify stub template\n";
     cout << "\t--rand                     enable random memory allocations\n";
     cout << "\t--vm                       enable anti-VM mode\n";
     cout << "\t--db                       enable anti-debugger mode\n";
     cout << "\t--dyn                      enable dynamic API call resolution\n";
     cout << "\tFlags must be specified individually\n";
 }
-
 
 void parseArgs(int argc, char* argv[], string *path_to_payload, string *path_to_output_dir, string *path_to_stub_template){
 
@@ -102,6 +96,9 @@ void parseArgs(int argc, char* argv[], string *path_to_payload, string *path_to_
         } else if(strcmp(argv[i], "--dyn") == 0){
             flags[DYN] = true;
             cout << "Dynamic API call resolution enabled\n";
+            continue;
+        } else if(strcmp(argv[i], "-c") == 0 || strcmp(argv[i], "--compile") == 0){
+            flags[COMPILE] = true;
             continue;
         }
     }

