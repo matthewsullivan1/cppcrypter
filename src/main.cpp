@@ -105,9 +105,7 @@ void parseArgs(int argc, char* argv[], string *path_to_payload, string *path_to_
             continue;
         }
     }
-
 }
-
 
 int main(int argc, char * argv[]){
 
@@ -118,11 +116,6 @@ int main(int argc, char * argv[]){
     string path_to_payload = (base_path / "bin" / "procinj.exe").string();
     string path_to_output_dir = (base_path / "stub").string() + "\\";
     string path_to_stub_template = (base_path / "resource\\stub.cpp").string();
-    /* 
-    string path_to_payload = "C:\\Users\\18163\\Desktop\\cppcrypter\\bin\\procinj.exe";
-    string path_to_output_dir = "C:\\Users\\18163\\Desktop\\cppcrypter\\stub\\";
-    string path_to_stub_template = "C:\\Users\\18163\\Desktop\\cppcrypter\\stub.cpp";
-    */
 
     parseArgs(argc, argv, &path_to_payload, &path_to_output_dir, &path_to_stub_template);
 
@@ -135,18 +128,7 @@ int main(int argc, char * argv[]){
 
     // key and IV gen
     auto [key, iv] = generateKeyAndIV(AES_BLOCK_SIZE, AES_BLOCK_SIZE);
-
-    //cout << "Read " << buf.size() << " bytes from the file." << endl;
     vector<unsigned char> payloadBytes = encrypt(buf, key, iv);
-
-    /* for debugging
-    vector<unsigned char> decrypted = decrypt(payloadBytes, key, iv);
-    cout << "encrypted: " << payloadBytes.size() << " bytes" << endl;
-    cout << "decrypted: " << decrypted.size() << " bytes" << endl;
-    printBytesHex(buf, 16);
-    printBytesHex(decrypted, 16);
-    */
-
     writeStub(flags, path_to_stub_template, path_to_output_dir, payloadBytes, key, iv);
 
     return 0;

