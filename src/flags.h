@@ -7,6 +7,10 @@ enum Flag {
     DB,
     DYN,
     COMPILE,
+    PAYLOAD,
+    STUB,
+    HELP,
+    PATH,
     FLAG_COUNT
 };
 
