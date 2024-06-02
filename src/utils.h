@@ -1,6 +1,9 @@
+// utils.h
 #ifndef UTILS_H
 #define UTILS_H
 
+#include <windows.h>
+#undef byte
 #include <vector>
 #include <string>
 #include <utility>
@@ -8,8 +11,9 @@
 using namespace std;
 
 
+void setColor(const int COLOR);
+void resetColor();
 string bytesToHexString(const vector<unsigned char> &bytes);
-void printBytesHex(const vector<unsigned char> &bytes, size_t numBytes);
 string generateRandomString(size_t len);
 
 vector<unsigned char> readBinary(string &path_to_payload);

