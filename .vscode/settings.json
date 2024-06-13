@@ -60,6 +60,8 @@
         "iomanip": "cpp",
         "optional": "cpp",
         "random": "cpp",
-        "ratio": "cpp"
+        "ratio": "cpp",
+        "map": "cpp",
+        "xtree": "cpp"
     }
 }

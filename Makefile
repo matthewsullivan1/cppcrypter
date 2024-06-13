@@ -4,7 +4,7 @@ CXX = g++
 # Flags for g++ and LD
 # Remove -s for easier binary analysis
 # CXXFLAGS = -s -I"./include" -static-libgcc -static-libstdc++ -static
-CXXFLAGS = -I"./include" -static -s
+CXXFLAGS = -I"./include"
 LDFLAGS = -L"./lib" "./lib/libssl.lib" "./lib/libcrypto.lib"
 
 # g++ flags for payload

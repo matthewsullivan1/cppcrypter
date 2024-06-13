@@ -8,13 +8,15 @@ By using this software, you agree to abide by all applicable local, state, and f
    
 The default payload search path in main is in /bin, so any 64 bit executable payload should be placed there. This is done automatically if the payload is built using the TARGET_PL Makefile rule. The stub template that the complete stub is built from is in /resource, and the compiled stubs are placed in /out. When using additional options for the stub, the same template is always used and the additional options are written in using commented placeholders in the template. 
 
-Project Directory Structure
-    bin - binaries of payloads. Default search path when using --payload flag
-    include - contains openssl header files needed for compilation
-    lib - contains openssl libraries needed for linking
-    out - default output directory for compiled stubs
-    resource - contains stub template file and payload source files
-    src - contains main source files 
+##Project Directory Structure  
+    bin - Contains payload binary  
+    include - Contains openssl header files needed for compilation  
+    lib - Contains openssl libraries needed for linking  
+    out - Output directory for compiled stub  
+    resource - Contains stub template file and payload source files
+
+    ##src  
+    Contains main source files. Constant.h contains strings that can be embedded in the stub, color codes, and AES block size. Flags.h defines two enumerations and global arrays to handle arguments and stub writing operations. Utils.h contains function prototypes for readBinary, generateKeyAndIV, encrypt, writeStub, as well as the associated helper functions. 
 
 Usage: 
     1. Initial Setup

