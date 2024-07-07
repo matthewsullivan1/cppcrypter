@@ -4,6 +4,7 @@
 
 #include <windows.h>
 #undef byte
+
 #include <vector>
 #include <string>
 #include <utility>
@@ -23,7 +24,7 @@ pair <vector<unsigned char>, vector<unsigned char>> generateKeyAndIV(size_t keyS
 vector<unsigned char> encrypt(const vector<unsigned char> &buf, const vector<unsigned char> &key, const vector<unsigned char> &iv);
 vector<unsigned char> decrypt(const vector<unsigned char> &buf, const vector<unsigned char> &key, const vector<unsigned char> &iv);
 //
-void replaceAPICalls(const std::string &filePath, const std::map<std::string, std::string> &replacements);
+void replaceAPICalls(const string &filePath, const map<string, string> &replacements);
 void writeStub(bool *flags, string &stub_name, string &stubTemplatePath, string &outputDirPath, const vector<unsigned char> &payloadBytes, const vector<unsigned char> &key, const vector<unsigned char> &iv);
 
 #endif // UTILS_H

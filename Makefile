@@ -5,11 +5,11 @@ CXX = g++
 # Remove -s for easier binary analysis
 # CXXFLAGS = -s -I"./include" -static-libgcc -static-libstdc++ -static
 CXXFLAGS = -I"./include"
-STUBFLAGS = -static-libstdc++ -static-libgcc --static
+STUBFLAGS = -static-libstdc++ -static-libgcc -static
 LDFLAGS = -L"./lib" "./lib/libssl.lib" "./lib/libcrypto.lib"
 
 # g++ flags for payload
-PL_FLAGS = -static-libgcc -static-libstdc++ -fexceptions --static
+PL_FLAGS = -static-libgcc -static-libstdc++ -fexceptions -static
 
 # Project directories
 BINDIR = bin
