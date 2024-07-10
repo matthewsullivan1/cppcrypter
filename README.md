@@ -23,5 +23,5 @@ make clean: deletes main.exe, clears /stub and /out directories
 --db: checks if the application is being ran in a debugger, and exits if so  
 --dyn: dynamically resolves certain Windows API calls at runtime  
 ## stub_\*.cpp  
-make stub: compiles each stub_*.cpp in /stub. stub_*.exe is placed in /out
+make stub: compiles each stub_\*.cpp in /stub. stub_\*.exe is placed in /out
 
