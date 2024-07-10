@@ -1,4 +1,4 @@
-#Disclaimer
+# Disclaimer
 
 This project is intended for educational and research purposes only. The tools and techniques demonstrated here are designed to improve understanding of reverse engineering and malware analysis concepts, and to help in developing defensive measures against malicious software. 
 
@@ -6,18 +6,18 @@ This project is intended for educational and research purposes only. The tools a
 
 By using this software, you agree to abide by all applicable local, state, and federal laws and regulations.
    
-#Usage
-##main.cpp
+# Usage
+## main.cpp
 make main.exe: compiles main program
 ./main.exe [args]: encrypts and embeds payload into stub_\*.cpp, written to /stub
 make clean: deletes main.exe, clears /stub and /out directories
-##Flags
+## Flags
 -h --help: display all flags
 -p: display paths for payload, stub output dir, stub template, and exit
 -n <name>: set a name for the stub. output will be stub_name.cpp/exe
 -c --compile: compile stub immediately. makefile must be configured properly 
 --payload <C:\Path\To\Payload>: specify payload. first exe found in /bin will be used by default 
-##Obfuscation flags 
+## Obfuscation flags 
 --rand: adds two random memory allocations before payload is executed 
 --vm: checks if the application is being ran in a virtual machine, and exits if so
 --db: checks if the application is being ran in a debugger, and exits if so
