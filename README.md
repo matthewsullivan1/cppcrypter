@@ -18,7 +18,7 @@ make clean: deletes main.exe, clears /stub and /out directories
 -c --compile: compile stub immediately. makefile must be configured properly  
 --payload <C:\Path\To\Payload>: specify payload. first exe found in /bin will be used by default  
 ## Obfuscation flags  
---rand: adds two random memory allocations before payload is executed 
+--rand: adds two random memory allocations before payload is executed  
 --vm: checks if the application is being ran in a virtual machine, and exits if so  
 --db: checks if the application is being ran in a debugger, and exits if so  
 --dyn: dynamically resolves certain Windows API calls at runtime  
