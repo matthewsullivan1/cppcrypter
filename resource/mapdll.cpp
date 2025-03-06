@@ -383,7 +383,7 @@ void* load_pe(PIMAGE_NT_HEADERS ntHeaders, const vector<unsigned char>& data){
     }*/
     cout << "Memory allocation at: " << baseAddress << endl;
 
-    memset(baseAddress, 0xAA, ntHeaders->OptionalHeader.SizeOfImage);
+    //memset(baseAddress, 0xAA, ntHeaders->OptionalHeader.SizeOfImage);
     memcpy(baseAddress, data.data(), ntHeaders->OptionalHeader.SizeOfHeaders);
     //cout << "Headers copied" << endl;
 
@@ -403,6 +403,7 @@ void* load_pe(PIMAGE_NT_HEADERS ntHeaders, const vector<unsigned char>& data){
     }
 
     // Following the LoadLibraryA / LdrLoadDll convention of memory protections
+    /*
     DWORD oldProtect; //default
     section =  IMAGE_FIRST_SECTION(ntHeaders);
     for(int i = 0; i < ntHeaders->FileHeader.NumberOfSections; i++){
@@ -411,7 +412,7 @@ void* load_pe(PIMAGE_NT_HEADERS ntHeaders, const vector<unsigned char>& data){
         void* sectionAddress = (BYTE*)baseAddress + section->VirtualAddress;
 
         // Had issues with entry point not having RX, explicitly setting the .text section just in case
-        // Even though the entry point is also explicitly set to RX 
+        // Even though the entry point is also explicitly set to RX
         if(strcmp(".text", (char*)section->Name) == 0){
             newProtect = PAGE_EXECUTE_READ;
         } else if(section->Characteristics & IMAGE_SCN_MEM_EXECUTE){
@@ -423,20 +424,7 @@ void* load_pe(PIMAGE_NT_HEADERS ntHeaders, const vector<unsigned char>& data){
         }
 
         VirtualProtect((BYTE*)baseAddress + section->VirtualAddress, section->Misc.VirtualSize, newProtect, &oldProtect);
-        /*
-        status = pNtProtectVirtualMemory(
-            CURRENT_PROCESS_HANDLE,
-            (PVOID*)&sectionAddress,
-            &regionSize,
-            newProtect,
-            &oldProtect
-        );
-
-        if(status != 0){
-            cerr << "NtProtectVirtualMemory failed with status code " << status << endl;
-            return NULL;
-        }*/
-    }
+    }*/
 
     return baseAddress;
 }
@@ -496,7 +484,8 @@ void TestEntry() {
     printf("[DEBUG] Entry Point Hit!\n");
 }
 
-/* this works for some reason and the uncommented execute does not 
+//this works for some reason
+/*
 void execute(const vector<unsigned char> &payload) {
 
     // Get DOS and NT Headers from the payload, e_lfanew is the offset start of the exe
@@ -519,7 +508,7 @@ void execute(const vector<unsigned char> &payload) {
         NULL,
         ntHeaders->OptionalHeader.SizeOfImage,
         MEM_COMMIT | MEM_RESERVE, 
-        PAGE_EXECUTE_READWRITE
+        PAGE_READWRITE
     );
     
     if (!execMemory) {
@@ -542,16 +531,37 @@ void execute(const vector<unsigned char> &payload) {
         cout << "Section " << section->Name << " copied to " << sectionDest << endl;
     }
 
-
     reloc(ntHeaders, execMemory);
     // Works as expected
     if(!resolveImports(execMemory, ntHeaders)){
         cerr << "Failed to resolve imports " << endl;
     }
 
+    DWORD oldProtect; //default
+    section =  IMAGE_FIRST_SECTION(ntHeaders);
+    for(int i = 0; i < ntHeaders->FileHeader.NumberOfSections; i++){
+        DWORD newProtect = PAGE_NOACCESS;
+        //regionSize = (SIZE_T)section->Misc.VirtualSize;
+        void* sectionAddress = (BYTE*)execMemory + section->VirtualAddress;
+
+        // Had issues with entry point not having RX, explicitly setting the .text section just in case
+        // Even though the entry point is also explicitly set to RX 
+        if(strcmp(".text", (char*)section->Name) == 0){
+            newProtect = PAGE_EXECUTE_READ;
+        } else if(section->Characteristics & IMAGE_SCN_MEM_EXECUTE){
+            newProtect = (section->Characteristics & IMAGE_SCN_MEM_WRITE) ? PAGE_EXECUTE_READWRITE : PAGE_EXECUTE_READ;
+        } else if (section->Characteristics & IMAGE_SCN_MEM_WRITE){
+            newProtect = PAGE_READWRITE;
+        } else {
+            newProtect = PAGE_READONLY;
+        }
+
+        VirtualProtect((BYTE*)execMemory + section->VirtualAddress, section->Misc.VirtualSize, newProtect, &oldProtect);
+    }
+
     void* entryPoint = (void*)((BYTE*)execMemory + ntHeaders->OptionalHeader.AddressOfEntryPoint);
+    VirtualProtect(entryPoint, 0x1000, PAGE_EXECUTE_READ, &oldProtect);
     cout << "Image entry point: " << entryPoint << endl;
-    DWORD oldProtect;
     HANDLE thread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)entryPoint, NULL, 0, NULL);
     if (!thread) {
         cerr << "CreateThread failed with error code: " << GetLastError()  << endl;
@@ -567,7 +577,6 @@ void execute(const vector<unsigned char> &payload) {
 } */
 
 /*BROKEN EXECUTE-----------------------------------------------------------------*/
-
 void execute(const vector<unsigned char> &payload) {
     // Get DOS and NT Headers from the payload, e_lfanew is the offset start of the exe
     PIMAGE_DOS_HEADER dosHeader = (PIMAGE_DOS_HEADER)payload.data();
@@ -580,18 +589,40 @@ void execute(const vector<unsigned char> &payload) {
     }
     cout << "Memory allocation at: " << execMemory << endl;    
 
-    void* entryPoint = (void*)((BYTE*)execMemory + ntHeaders->OptionalHeader.AddressOfEntryPoint);
-    cout << "Image entry point: " << entryPoint << endl;
 
     // Entry point was being placed in its own page, outside of the .text section, and was RO / RW  
     // So we need to explicitly set it to execute, in either case, it will be executable since the 
     // .text section entirely is set to RX in load_pe() 
     DWORD oldProtect;
+    PIMAGE_SECTION_HEADER section =  IMAGE_FIRST_SECTION(ntHeaders);
+    for(int i = 0; i < ntHeaders->FileHeader.NumberOfSections; i++){
+        DWORD newProtect = PAGE_NOACCESS;
+        //regionSize = (SIZE_T)section->Misc.VirtualSize;
+        void* sectionAddress = (BYTE*)execMemory + section->VirtualAddress;
+
+        // Had issues with entry point not having RX, explicitly setting the .text section just in case
+        // Even though the entry point is also explicitly set to RX 
+        if(strcmp(".text", (char*)section->Name) == 0){
+            newProtect = PAGE_EXECUTE_READ;
+        } else if(section->Characteristics & IMAGE_SCN_MEM_EXECUTE){
+            newProtect = (section->Characteristics & IMAGE_SCN_MEM_WRITE) ? PAGE_EXECUTE_READWRITE : PAGE_EXECUTE_READ;
+        } else if (section->Characteristics & IMAGE_SCN_MEM_WRITE){
+            newProtect = PAGE_READWRITE;
+        } else {
+            newProtect = PAGE_READONLY;
+        }
+
+        VirtualProtect((BYTE*)execMemory + section->VirtualAddress, section->Misc.VirtualSize, newProtect, &oldProtect);
+    }
+
+    void* entryPoint = (void*)((BYTE*)execMemory + ntHeaders->OptionalHeader.AddressOfEntryPoint);
+    cout << "Image entry point: " << entryPoint << endl;
     SIZE_T regionSize = 0x1000;
     VirtualProtect(entryPoint, 0x1000, PAGE_EXECUTE_READ, &oldProtect);
 
     // Convert to NT version
     HANDLE hThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)entryPoint, NULL, 0, NULL);
+
     
     if (!hThread) {
         cerr << "CreateThread failed with status code: " << GetLastError()  << endl;
