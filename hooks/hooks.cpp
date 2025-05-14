@@ -2,6 +2,7 @@
 #include <Windows.h>
 #include <winternl.h>
 #include <psapi.h>
+#include <cstdint>
 
 
 
@@ -77,6 +78,8 @@ DWORD getHashFromString(const char *string){
     return hash;
 }
 
+
+
 typedef struct _LDR_DATA_TABLE_ENTRY_EX {
     LIST_ENTRY InLoadOrderLinks;
     LIST_ENTRY InMemoryOrderLinks;
@@ -109,13 +112,12 @@ HMODULE get_dll_base(const wchar_t* name) {
     return nullptr;
 }
 
-void* resolveAddr(HMODULE hModule, const char* name, DWORD hash){
+void* resolve_addr(HMODULE hModule, const char* name, DWORD hash){
     auto dos_header = (PIMAGE_DOS_HEADER)hModule;
     auto nt_headers = (PIMAGE_NT_HEADERS)((BYTE*)hModule + dos_header->e_lfanew);
     auto export_dir_rva = nt_headers->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress;
     auto export_dir = (PIMAGE_EXPORT_DIRECTORY)((BYTE*)hModule + export_dir_rva);
     auto num = export_dir->NumberOfFunctions;
-    cout << "Number of names: " << num << endl;
 
     auto names = (DWORD*)((BYTE*)hModule + export_dir->AddressOfNames);
     auto functions = (DWORD*)((BYTE*)hModule + export_dir->AddressOfFunctions);
@@ -138,12 +140,25 @@ void* resolveAddr(HMODULE hModule, const char* name, DWORD hash){
                 WORD ordinal = ordinals[i];
                 DWORD fn_rva = functions[ordinal];
                 printf("Function: %s (hash: %u) resolved at: %p\n", fn_name, fn_hashed, ((BYTE*)hModule + fn_rva));
+                if(strcmp(fn_name, "NtAllocateVirtualMemory") == 0 || strcmp(fn_name, "NtCreateThreadEx") == 0){
+                    for(uint16_t j = 0; j < 21; j++){
+                        cout << "0x" << (int)*((BYTE*)hModule + fn_rva + j) << " ";
+                    }
+                }
+                /*
+                NtAllocateVirtualMemory and NtCreateThreadEx are the same, can read and check the same number of bytes 21   21
+                LdrLoadDll we need to read until we find the sequence 5e c3 (pop, return), only appears at the end of the function
+                
+                */
+
 
 
 
                 /*
                 TODO : print prologues for demonstration 
                     NOTE: LdrLoadDll might have relative jumps, so copying the clean version from disk might not work
+                    5e pop
+                    c3 ret 
                 
                 */
                 //DWORD next_rva = functions[ordinal+1];
@@ -166,10 +181,10 @@ NtAllocateVirtualMemory_t pNtAllocateVirtualMemory = nullptr;
 NtCreateThreadEx_t pNtCreateThreadEx = nullptr;
 LdrLoadDll_t pLdrLoadDll = nullptr;
 
-void resolveFuncPointers(DWORD *hashes, HMODULE handle){
-    pNtAllocateVirtualMemory = (NtAllocateVirtualMemory_t)resolveAddr(handle, 0, hashes[0]);
-    pNtCreateThreadEx = (NtCreateThreadEx_t)resolveAddr(handle, 0, hashes[1]);
-    pLdrLoadDll = (LdrLoadDll_t)resolveAddr(handle, 0, hashes[2]);
+void resolve_func_pointers(DWORD *hashes, HMODULE handle){
+    pNtAllocateVirtualMemory = (NtAllocateVirtualMemory_t)resolve_addr(handle, 0, hashes[0]);
+    pNtCreateThreadEx = (NtCreateThreadEx_t)resolve_addr(handle, 0, hashes[1]);
+    pLdrLoadDll = (LdrLoadDll_t)resolve_addr(handle, 0, hashes[2]);
 
     void* realNtAVM = (void*)GetProcAddress(GetModuleHandleA("ntdll.dll"), "NtAllocateVirtualMemory");
     void* realNtCTE = (void*)GetProcAddress(GetModuleHandleA("ntdll.dll"), "NtCreateThreadEx");
@@ -274,6 +289,41 @@ void checkNtdll(HMODULE ntdll, const char*){
 	}
 }
 
+typedef NTSTATUS(NTAPI* RtlInitUnicodeString_t)(
+    PUNICODE_STRING DestinationString, 
+    PCWSTR SourceString
+);
+
+HMODULE MapDll(const char* name){
+    HMODULE ntdll = get_dll_base(L"ntdll.dll");
+    if(!ntdll){
+        cerr << "Could not get handle to ntdll.dll" << endl;
+    }
+    RtlInitUnicodeString_t pRtlInitUnicodeString = (RtlInitUnicodeString_t)resolve_addr(ntdll, "RtlInitUnicodeString", 0);
+
+    if(!pRtlInitUnicodeString){
+        cerr << "Failed to resolve address of rtlinit\n";
+    } else {
+        cout << "rtlinit address resolved\n";
+    }
+
+    // LdrLoadDll requires a unicode DLL name, need to convert from const char -> wide char -> unicode
+    wchar_t wName[MAX_PATH];
+    MultiByteToWideChar(CP_ACP, 0, name, -1, wName, MAX_PATH);
+    UNICODE_STRING unicodeName;
+
+    pRtlInitUnicodeString(&unicodeName, wName);
+
+    HANDLE hModule = NULL;
+    NTSTATUS status = pLdrLoadDll(NULL, 0, &unicodeName, &hModule);
+    if(status!=0){
+        cerr << "LdrLoadDll failed, NTSTATUS: " << status << endl;
+    }
+
+
+    return (HMODULE)hModule;
+}
+
 int main()
 {
     cout << "inject dll\n";
@@ -292,7 +342,7 @@ int main()
 
     DWORD hashes[3] = {0xafacbb9d, 0x87b688c5, 0x40a18b0d};
 
-    resolveFuncPointers(hashes, ntdll);
+    resolve_func_pointers(hashes, ntdll);
 
     /*
     NtAllocateVirtualMemory_t pNtAllocateVirtualMemory = (NtAllocateVirtualMemory_t)resolveAddr(ntdll, 0, hashes[0]);
@@ -336,6 +386,19 @@ int main()
     if(baseAddress){
         VirtualFree(baseAddress, 0, MEM_RELEASE);
     }
+
+    cout << "LdrLoadDll test\n";
+    if(get_dll_base(L"d3compiler_47.dll") == nullptr){
+        cout << "d3compiler_47.dll not already loaded, trying LoadDll\n";
+        HMODULE handle = MapDll("d3compiler_47.dll");
+        if(!handle){
+            cerr << "Failed to map DLL into process\n";
+        } else {
+            cout << "d3compiler_47.dll loaded at " << hex << handle << endl;
+        }
+    }
+
+
 
 
 

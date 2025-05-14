@@ -1,0 +1,10 @@
+todo/
+hooks/
+
+*.exe
+obj/
+bin/
+out/
+
+.vscode/
+

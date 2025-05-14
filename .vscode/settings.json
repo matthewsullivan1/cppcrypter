@@ -62,6 +62,9 @@
         "random": "cpp",
         "ratio": "cpp",
         "map": "cpp",
-        "xtree": "cpp"
+        "xtree": "cpp",
+        "unordered_map": "cpp",
+        "xhash": "cpp",
+        "list": "cpp"
     }
 }

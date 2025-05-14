@@ -1,71 +1,71 @@
-# Set compiler
+# ============ Compiler & Common Flags ============
 CXX = g++
+CXXFLAGS = -Wall -std=c++20 -Iinclude
 
-# Flags for g++ and LD
-# Remove -s for easier binary analysis
-# CXXFLAGS = -s -I"./include" -static-libgcc -static-libstdc++ -static
-CXXFLAGS = -I"./include"
-STUBFLAGS = -static-libstdc++ -static-libgcc -static
-LDFLAGS = -L"./lib" "./lib/libssl.lib" "./lib/libcrypto.lib"
+# OpenSSL and system libs
+OPENSSL_LIBS = -lssl -lcrypto -lws2_32 -lcrypt32
+MINGW_LIBDIR = -L"C:/msys64/mingw64/lib"
 
-# g++ flags for payload
-PL_FLAGS = -static-libgcc -static-libstdc++ -fexceptions -static
+# ============ FRONTEND (main.exe) ============
 
-# Project directories
-BINDIR = bin
-STUBDIR = stub
-OUTDIR = out
-SRCDIR = src
-RESDIR = resource
+FRONTEND_SRC_DIR = src/frontend
+FRONTEND_OBJ_DIR = obj/frontend
+FRONTEND_SRCS = $(wildcard $(FRONTEND_SRC_DIR)/*.cpp)
+FRONTEND_OBJS = $(patsubst $(FRONTEND_SRC_DIR)/%.cpp, $(FRONTEND_OBJ_DIR)/%.o, $(FRONTEND_SRCS))
+FRONTEND_CXXFLAGS = $(CXXFLAGS) -Iinclude/frontend
+FRONTEND_LDFLAGS = $(MINGW_LIBDIR) $(OPENSSL_LIBS) -static
 
-# Source files
-MAIN_SRCS = $(SRCDIR)/main.cpp $(SRCDIR)/utils.cpp
-PL_SRC = $(RESDIR)/procinj.cpp
-STUB_SRCS = $(wildcard $(STUBDIR)/stub_*.cpp)
+main.exe: $(FRONTEND_OBJS)
+	$(CXX) $^ -o $@ $(FRONTEND_CXXFLAGS) $(FRONTEND_LDFLAGS)
 
-# Targets
-TARGET_MAIN = main.exe
-TARGET_PL = $(BINDIR)/procinj.exe
-STUB_TARGETS = $(patsubst $(STUBDIR)/stub_%.cpp,$(OUTDIR)/stub_%.exe,$(STUB_SRCS))
+$(FRONTEND_OBJ_DIR)/%.o: $(FRONTEND_SRC_DIR)/%.cpp
+	@mkdir -p $(FRONTEND_OBJ_DIR)
+	$(CXX) -c $< -o $@ $(FRONTEND_CXXFLAGS)
 
-# Default target
-all: $(TARGET_PL) $(TARGET_MAIN) stub
+# ============ STUB (out/stub.exe) ============
 
-# Rule to build payload
-# make bin/procinj.exe
-$(TARGET_PL): $(PL_SRC) | $(BINDIR)
-	$(CXX) $(PL_FLAGS) -o $@ $(PL_SRC)
+# Match one stub_*.cpp file in /stub
+STUB_GENERATED_CPP := $(firstword $(wildcard stub/stub_*.cpp))
+STUB_SRC_DIR = src/stub
+STUB_OBJ_DIR = obj/stub
+STUB_SRCS = $(wildcard $(STUB_SRC_DIR)/*.cpp)
+STUB_SRCS += $(STUB_GENERATED_CPP)
+STUB_OBJS = $(patsubst %.cpp, $(STUB_OBJ_DIR)/%.o, $(notdir $(STUB_SRCS)))
+STUB_CXXFLAGS = $(CXXFLAGS) -Iinclude/stub
+STUB_LDFLAGS = $(MINGW_LIBDIR) $(OPENSSL_LIBS) -lshlwapi -static
 
-# Rule to build main
-# make main.exe
-$(TARGET_MAIN): $(MAIN_SRCS)
-	$(CXX) -o $@ $(MAIN_SRCS) $(CXXFLAGS) $(LDFLAGS)
+out/stub.exe: $(STUB_OBJS)
+	$(CXX) $^ -o $@ $(STUB_CXXFLAGS) $(STUB_LDFLAGS)
 
-# Rule to build stubs individually
-# make stub/stub_********.exe
-$(OUTDIR)/stub_%.exe: $(STUBDIR)/stub_%.cpp | $(OUTDIR)
-	$(CXX) -o $@ $< $(CXXFLAGS) $(LDFLAGS) $(STUBFLAGS)
+$(STUB_OBJ_DIR)/%.o: $(STUB_SRC_DIR)/%.cpp
+	@mkdir -p $(STUB_OBJ_DIR)
+	$(CXX) -c $< -o $@ $(STUB_CXXFLAGS)
 
-# Target to build all stubs
-# make stub
-stub: $(STUB_TARGETS)
+$(STUB_OBJ_DIR)/stub.o: stub/stub.cpp
+	@mkdir -p $(STUB_OBJ_DIR)
+	$(CXX) -c $< -o $@ $(STUB_CXXFLAGS)
 
-# Rule to clean up object and executable files
+# Handle stub/stub_*.cpp files
+$(STUB_OBJ_DIR)/%.o: stub/%.cpp
+	@mkdir -p $(STUB_OBJ_DIR)
+	$(CXX) -c $< -o $@ $(STUB_CXXFLAGS)
+
+
+
+# ============ PROCINJ (bin/procinj.exe) ============
+
+PROJ_SRC = resource/procinj.cpp
+PROJ_BIN = bin/procinj.exe
+
+$(PROJ_BIN): $(PROJ_SRC)
+	@mkdir -p bin
+	$(CXX) -static-libgcc -static-libstdc++ -fexceptions -static -o $@ $<
+
+# ============ Meta Targets ============
+
+.PHONY: all clean
+
+all: main.exe out/stub.exe $(PROJ_BIN)
+
 clean:
-	rm $(TARGET_MAIN) $(STUB_SRCS) $(OUTDIR)/stub_*.exe
-# Ensure the bin and out directories exist 
-$(BINDIR):
-	mkdir $(BINDIR)
-
-$(OUTDIR):
-	mkdir $(OUTDIR)
-
-.PHONY: all clean stub print-%
-
-
-# Print values of variables
-print-STUB_SRCS:
-	@echo STUB_SRCS: $(STUB_SRCS)
-
-print-STUB_TARGETS:
-	@echo STUB_TARGETS: $(STUB_TARGETS)
+	rm -rf obj/* out/* bin/* main.exe
