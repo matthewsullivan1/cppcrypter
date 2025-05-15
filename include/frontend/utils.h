@@ -3,6 +3,7 @@
 #define UTILS_H
 
 #include <windows.h>
+#include "config.h"
 #undef byte
 
 #include <vector>
@@ -30,6 +31,6 @@ vector<unsigned char> Xor(std::vector<unsigned char> &encrypted, uint16_t key);
 
 //
 void replaceAPICalls(const string &filePath, const map<string, string> &replacements);
-void writeStub(bool *flags, string &stub_name, string &stubTemplatePath, string &outputDirPath, const vector<unsigned char> &payloadBytes, const vector<unsigned char> &key, const vector<unsigned char> &iv);
+void writeStub(Config& config, const vector<unsigned char> &payloadBytes, const vector<unsigned char> &key, const vector<unsigned char> &iv);
 
 #endif // UTILS_H

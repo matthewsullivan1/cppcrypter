@@ -199,38 +199,66 @@ void replaceAPICalls(string &line, const map<string, string> &replacements) {
     }
 }
 
-void writeStub(bool *flags, string &stub_name, string &stubTemplatePath, string &outputDirPath, const vector<unsigned char> &payloadBytes, const vector<unsigned char> &key, const vector<unsigned char> &iv) {
+void writeStub(Config& config, const vector<unsigned char> &payloadBytes, const vector<unsigned char> &key, const vector<unsigned char> &iv) {
     setColor(COLOR_INFO);
     cout << "\nWriting stub...\n";
     resetColor();
 
-    ifstream file(stubTemplatePath);
+    ifstream file(config.stub_path);
     if (!file) {
-        setColor(COLOR_ERROR);
-        cerr << "Could not open stub template\n";
-        resetColor();
-        exit(1);
+        throw runtime_error("Could not open stub template " + config.stub_path);
     }
     
-    string name;
-    string outputPath;
-    filesystem::create_directories(outputDirPath);
+    string gen_stub_path;
 
-    if(flags[NAME] == true){
-        name = stub_name;
-        outputPath = outputDirPath + "stub_" + name + ".cpp";
+    if(config.name){
+        gen_stub_path = config.stub_path + "stub_" + config.stub_name + ".cpp";
     } else {
-        name = generateRandomString(8);
-        outputPath = outputDirPath + "stub_" + name + ".cpp";
+        gen_stub_path = config.stub_path + "stub_" + generateRandomString(8); + ".cpp";
     }
 
-    ofstream outputFile(outputPath);
+    ofstream outputFile(gen_stub_path);
     if (!outputFile) {
-        setColor(COLOR_ERROR);
-        cerr << "Error writing stub\n";
-        resetColor();
-        exit(1);
+        throw runtime_error("Could not open stub " + gen_stub_path);
     }
+
+
+    /*
+    The new stub needs to be written in an order that accounts for every option
+    Rand
+    The key, IV, payload are the last to be inserted
+    For the case of rand, each block of additional code that is inserted should contain placeholders in case rand is used,
+    For rand, it can be inserted at any time ? use different placeholders such as RAND1 RAND2 to specify a block of junk code
+    
+    --db
+        definition 
+        call
+    --vm
+        definition
+        call
+        include
+    --dyn
+        definitions
+        update existing calls
+        needs to be able to handle both kernel32 and ntdll calls, since nt is an option 
+    --rand 
+        definitions
+        insert blocks into existing or future blocks from other options -- should be done last before payload data 
+    --nt  
+        update existing API calls in execute
+        should be done before dyn in the case that both are used 
+    --syscall 
+
+    --unhook
+
+
+
+    The problem is when arguments are used they have multiple insertions
+    
+    
+    
+    
+    */
     
     // Add flags that will be set for placeholders
     // since all flags require two separate replacements the original flags array cannot be used

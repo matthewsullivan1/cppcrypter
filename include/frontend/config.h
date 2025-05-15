@@ -15,12 +15,11 @@ struct Config
     bool pdb = false;
     bool name = false;
     bool paths = false;
-    
+
     bool payload = false;
     bool stub = false;
-    bool out = false;
 
-
+    // Note: no option to change output dir, because makefile is configured to compile stub from /stub
     std::string payload_path = "./bin/";
     std::string stub_path = "./resource/stub_template.cpp";
     std::string output_dir = "./out/";

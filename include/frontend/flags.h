@@ -17,6 +17,8 @@ enum Flag {
 };
 
 
+
+
 // flags[] is for checking whether or not the flag was used, insertions[] is updated by flags[],
 // since there are multipe segments that need to be inserted per single flag being set, rather than
 // checking at every single line, if the flag is true, and the line matches the placeholder for the 
